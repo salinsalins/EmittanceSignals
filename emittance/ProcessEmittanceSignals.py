@@ -4,10 +4,8 @@ Created on Jul 2, 2017
 
 @author: sanin
 '''
-# used to parse files more easily
 from __future__ import with_statement
 from __future__ import print_function
-from configparser import ConfigParser
 
 import os.path
 import shelve
@@ -17,7 +15,6 @@ import json
 from emittance.findRegions import findRegions as findRegions
 from emittance.findRegions import restoreFromRegions as restoreFromRegions
 from emittance.smooth import smooth
-from emittance.printl import printl
 from emittance.readTekFiles import readTekFiles
 import logging
 
