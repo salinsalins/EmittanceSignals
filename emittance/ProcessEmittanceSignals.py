@@ -109,7 +109,8 @@ class DesignerMainWindow(QMainWindow):
         # configure logging
         self.logger = logging.getLogger(_progName+_progVersion)
         self.logger.setLevel(logging.DEBUG)
-        self.log_formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+        self.f_str = '%(asctime)s,%(msecs)3d %(levelname)-7s %(filename)s %(funcName)s(%(lineno)s) %(message)s'
+        self.log_formatter = logging.Formatter(self.f_str, datefmt='%H:%M:%S')
         self.console_handler = logging.StreamHandler()
         #self.console_handler.setLevel(logging.WARNING)
         self.console_handler.setFormatter(self.log_formatter)
