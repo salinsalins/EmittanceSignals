@@ -771,7 +771,7 @@ class DesignerMainWindow(QMainWindow):
         r = self.readParameter(row, "range", r0)
         index = np.arange(r[0], r[1])
         # scale
-        s = self.readParameter(row, "scale", 1.7, float)
+        s = self.readParameter(row, "scale", 2.0, float)
         # ndh
         ndh = self.readParameter(row, "ndh", 0.0, float)
         # scanner base
@@ -1258,7 +1258,7 @@ class DesignerMainWindow(QMainWindow):
         for i in range(nx - 1):
             X0[:, i] = x0[i]
             Y0[:, i] = ys
-            Z0[:, i] = F0[i](Y0[:, i])
+            Z0[:, i] = F0[i](ys)
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
 
