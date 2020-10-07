@@ -14,11 +14,11 @@ import shelve
 import sys
 import json
 
-from findRegions import findRegions as findRegions
-from findRegions import restoreFromRegions as restoreFromRegions
-from smooth import smooth
-from printl import printl 
-from readTekFiles import readTekFiles
+from emittance.findRegions import findRegions as findRegions
+from emittance.findRegions import restoreFromRegions as restoreFromRegions
+from emittance.smooth import smooth
+from emittance.printl import printl
+from emittance.readTekFiles import readTekFiles
 import logging
 
 # PyQt4-5 universal imports
@@ -80,7 +80,8 @@ class DesignerMainWindow(QMainWindow):
         # initialization of the superclass
         super(DesignerMainWindow, self).__init__(parent)
         # load the GUI 
-        uic.loadUi('.\emittance\Emittance1.ui', self)
+        #uic.loadUi(r'.\emittance\Emittance1.ui', self)
+        uic.loadUi(r'.\Emittance1.ui', self)
         # connect the signals with the slots
         self.pushButton_2.clicked.connect(self.selectFolder)
         self.pushButton_4.clicked.connect(self.processFolder)
