@@ -1177,10 +1177,10 @@ class DesignerMainWindow(QMainWindow):
 
     def calculateEmittance(self):
 
-        if self.data is None :
+        if self.data is None:
             return
         nx = len(self.fileNames) 
-        if nx <= 0 :
+        if nx <= 0:
             return
 
         axes = self.mplWidget.canvas.ax
@@ -1195,7 +1195,7 @@ class DesignerMainWindow(QMainWindow):
             ndh[i-1] = self.readParameter(i, 'ndh', 0.0, float)
             x0auto[i-1] = self.readParameter(i, 'x0', 0.0, float, select='auto')
         # common parameters
-        R = self.readParameter(0, 'R', 2.0e5, float)    # [Ohm] Faraday cup load resistior
+        R = self.readParameter(0, 'R', 2.0e5, float)    # [Ohm] Faraday cup load resistor
         l1 = self.readParameter(0, 'l1', 213.0, float)  # [mm] distance from source to analyzer aperture
         l2 = self.readParameter(0, 'l2', 195.0, float)  # [mm] analyzer base
         d1 = self.readParameter(0, 'd1', 0.5, float)    # [mm] analyzer hole diameter
@@ -1204,7 +1204,7 @@ class DesignerMainWindow(QMainWindow):
 
         self.logger.info('Emittance calculation using parameters:')
         self.logger.info('R=%fOhm; l1=%fmm; l2=%fmm; d1=%fmm; d2=%fmm'%(R,l1,l2,d1,d2))
-        for i in range(nx) :
+        for i in range(nx):
             try:
                 s = 'Chan.%3d '%i
                 s = s + 'x0=%5.1f mm; ndh=%5.1f mm; '%(x0[i-1],ndh[i-1])
@@ -1235,7 +1235,7 @@ class DesignerMainWindow(QMainWindow):
         ymax = -1.0e99
         # calculate interpolating functions for initial data
         for i in range(nx-1) :
-            y,z,index = self.readSignal(i+1)         # y in [Radians]; z < 0.0 in [A]
+            y, z, index = self.readSignal(i+1)         # y in [Radians]; z < 0.0 in [A]
             yy = y[index]
             # convert to [Ampere/Radian/mm^2]
             zz = z[index] * l2/d2 / a1
@@ -1254,22 +1254,22 @@ class DesignerMainWindow(QMainWindow):
         ys = np.linspace(ymin, ymax, N)
         # fill data arrays
         for i in range(nx-1) :
-            X0[:,i] = x0[i]
-            Y0[:,i] = ys
-            Z0[:,i] = F0[i](Y0[:,i])
+            X0[:, i] = x0[i]
+            Y0[:, i] = ys
+            Z0[:, i] = F0[i](Y0[:,i])
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
         
         # X0,Y0,Z0,F0 -> X1,Y1,Z1,F1 sort data according rising x0
-        index = np.argsort(X0[0,:])
+        index = np.argsort(X0[0, :])
         X1 = X0.copy()
         Y1 = Y0.copy()
         Z1 = Z0.copy()
         F1 = list(F0)
         for i in range(nx-1) :
-            X1[:,index[i]] = X0[:,i]
-            Y1[:,index[i]] = Y0[:,i]
-            Z1[:,index[i]] = Z0[:,i]
+            X1[:, index[i]] = X0[:, i]
+            Y1[:, index[i]] = Y0[:, i]
+            Z1[:, index[i]] = Z0[:, i]
             F1[index[i]] = F0[i]
         
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
@@ -1337,24 +1337,25 @@ class DesignerMainWindow(QMainWindow):
         X4 = X3
         Y4 = Y3
         Z4 = Z3.copy()
-        x = X3[0,:]
-        y = x.copy()
-        for i in range(nx-1) :
+        x = X3[0, :]
+        y = x.copy()*0.0
+        for i in range(nx-1):
             xi = x[i]
             if xi >= 0.0:
-                mask = x >= xi
+                mask = x > xi
+                # print(xi)
                 y[mask] = np.sqrt(x[mask]**2 - xi**2)
             if xi < 0.0:
-                mask = x <= xi
+                mask = x < xi
                 y[mask] = -np.sqrt(x[mask]**2 - xi**2)
             for k in range(N) :
-                z = Z3[k,:].copy()
-                Z4[k,i] = 2.0*trapz(z[mask], y[mask])
+                z = Z3[k, :].copy()
+                Z4[k, i] = 2.0*trapz(z[mask], y[mask])
         Z4[Z4 < 0.0] = 0.0
         if int(self.comboBox.currentIndex()) == 13:
             # total beam current
-            Z4t = self.integrate2d(X4,Y4,Z4) * 1000.0 # [mA]
-            self.logger.info('Total Z4 (beam current) = %f mA'%Z4t)
+            Z4t = self.integrate2d(X4, Y4, Z4) * 1000.0  # [mA]
+            self.logger.info('Total Z4 (beam current) = %f mA' % Z4t)
             self.clearPicture()
             axes.contour(X4, Y4, Z4)
             axes.grid(True)
@@ -1402,18 +1403,19 @@ class DesignerMainWindow(QMainWindow):
         X6 = X5
         Y6 = Y5
         Z6 = np.zeros((N, N), dtype=np.float64)
-        g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
-        for i in range(N) :
-            y = Y5[:,i]
-            z = Z5[:,i]
+        #g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
+        g = interp1d(X3[0,:], Shift, kind='linear', bounds_error=False, fill_value=0.0)
+        for i in range(N):
+            y = Y5[:, i]
+            z = Z5[:, i]
             f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-            s = g(X5[0,i])
-            Z6[:,i] = f(Y5[:,i] - s)
+            s = g(X5[0, i])
+            Z6[:, i] = f(Y5[:, i] - s)
         Z6[Z6 < 0.0] = 0.0
         # debug plot 16
         if int(self.comboBox.currentIndex()) == 16:
             Z6t = self.integrate2d(X6,Y6,Z6) * 1000.0 # [mA]
-            self.logger.info('Total Z6 (beam current) = %f mA'%Z6t)
+            self.logger.info('Total Z6 (beam current) = %f mA' % Z6t)
 
             # experimental resample function
             #ff = self.interpolatePlot(X1[0,:],Y1[:,0],F1)
@@ -1845,10 +1847,10 @@ class DesignerMainWindow(QMainWindow):
         try:
             fullName = os.path.join(str(folder), fileName)
             exec(open(fullName).read(), globals(), locals())
-            self.logger.info('Init script %s executed.'%fullName)
+            self.logger.info('Init script %s executed.' % fullName)
         except:
-            self.printExceptionInfo()
-            self.logger.info('Init script %s error.'%fullName)
+            self.logger.info('Init script %s error.', fullName)
+            self.logger.debug('Exception info', exc_info=True)
 
     def printExceptionInfo(self):
         (tp, value) = sys.exc_info()[:2]
