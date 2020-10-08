@@ -1286,8 +1286,15 @@ class DesignerMainWindow(QMainWindow):
 
         if int(self.comboBox.currentIndex()) == 20:
             grid_x, grid_y = np.meshgrid(np.linspace(X1.min(), X1.max(), N), np.linspace(Y1.min(), Y1.max(), N))
-            points = np.r_['1,2,0', X1.flat, Y1.flat]
-            grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='nearest')
+            x = X1.flat
+            y = Y1.flat
+            z = Z1.flat
+            mask = z > 0.00 * np.max(z)
+            x = x[mask]
+            y = y[mask]
+            z = z[mask]
+            points = np.r_['1,2,0', x, y]
+            grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
             self.clearPicture()
             axes.contour(grid_x, grid_y, grid_z)
             axes.grid(True)
@@ -1296,7 +1303,7 @@ class DesignerMainWindow(QMainWindow):
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.readParameter(0, 'center', 'avg') == 'max':
-            n = np.argmax(Z1)
+            n = np.argmax(Z1.flat)
             X1avg = X1.flat[n]
             Y1avg = Y1.flat[n]
         if self.readParameter(0, 'center', 'avg') == 'avg':
@@ -1304,9 +1311,12 @@ class DesignerMainWindow(QMainWindow):
             X1avg = self.integrate2d(X1, Y1, X1 * Z1) / Z1t
             Y1avg = self.integrate2d(X1, Y1, Y1 * Z1) / Z1t
         self.logger.info('Average X1 %s, Y1 %s', X1avg, Y1avg)
-        Z2 = Z1
+        Z2 = Z1.copy()
         X2 = X1.copy() - X1avg
         Y2 = Y1.copy() - Y1avg
+        # Y2 = Y1.copy()
+        # for i in range(nx - 1):
+        #     Z2[:, i] = F1[i](Y2[:, i] + Y1avg)
         # debug draw 10
         if int(self.comboBox.currentIndex()) == 10:
             # cross-section current
@@ -1347,6 +1357,8 @@ class DesignerMainWindow(QMainWindow):
             self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
             self.clearPicture()
             axes.contour(X3, Y3, Z3)
+            axes.contour(X2, Y2, Z2)
+            axes.plot(X2[0, :], Shift-Y1avg, color='red')
             axes.grid(True)
             axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
             self.mplWidget.canvas.draw()
@@ -1411,7 +1423,7 @@ class DesignerMainWindow(QMainWindow):
         # X and Y
         for i in range(N):
             X5[i, :] = xs
-            Y5[:, i] = ys
+            Y5[:, i] = ys - Y1avg
         for i in range(N - 1):
             x = X4[i, :]
             z = Z4[i, :]
@@ -1440,8 +1452,9 @@ class DesignerMainWindow(QMainWindow):
         for i in range(N):
             y = Y5[:, i]
             z = Z5[:, i]
-            f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-            s = g(X5[0, i])
+            #f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
+            f = interp1d(y, z, kind='cubic', bounds_error=False, fill_value=0.0)
+            s = g(X5[0, i]) - Y1avg
             Z6[:, i] = f(Y5[:, i] - s)
         Z6[Z6 < 0.0] = 0.0
         # debug plot 16
@@ -1449,19 +1462,20 @@ class DesignerMainWindow(QMainWindow):
             Z6t = self.integrate2d(X6, Y6, Z6) * 1000.0  # [mA]
             self.logger.info('Total Z6 (beam current) = %f mA' % Z6t)
 
-            # experimental resample function
+            # #experimental resample function
             # ff = self.interpolatePlot(X1[0,:],Y1[:,0],F1)
-            # for i in range(N) :
+            # for i in range(N):
             #    self.logger.info(i)
-            #    for k in range(N) :
+            #    for k in range(N):
             #        pass
-            #        #Z6[i,k] = ff(X6[i,k], Y6[i,k])
+            #        Z6[i,k] = ff(X6[i,k], Y6[i,k])
             # Z6[Z6 < 0.0] = 0.0
             # Z6t = self.integrate2d(X6,Y6,Z6) * 1000.0 # [mA]
             # self.logger.info('Total Z6 (beam current) = %f mA'%Z6t)
 
             self.clearPicture()
             axes.contour(X6, Y6, Z6)
+            axes.plot(X3[0, :], Shift - Y1avg, 'x-', color='red')
             axes.grid(True)
             axes.set_title('Z6 [N,N] divergence back')
             self.mplWidget.canvas.draw()
@@ -1590,12 +1604,12 @@ class DesignerMainWindow(QMainWindow):
         # plot contours
         if int(self.comboBox.currentIndex()) == 5:
             self.clearPicture()
-            axes.contour(X, Y, Z, linewidths=1.0)
+            axes.contour(X, Y*1000.0, Z, linewidths=1.0)
             axes.grid(True)
             axes.set_title('Emittance contour plot')
             # axes.set_ylim([ymin,ymax])
             axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliRadians')
+            axes.set_ylabel('X\', milliradians')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
                     self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
@@ -1605,12 +1619,12 @@ class DesignerMainWindow(QMainWindow):
         # plot filled contours
         if int(self.comboBox.currentIndex()) == 6:
             self.clearPicture()
-            axes.contourf(X, Y, Z)
+            axes.contourf(X, Y*1000.0, Z)
             axes.grid(True)
             axes.set_title('Emittance color plot')
             # axes.set_ylim([ymin,ymax])
             axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliRadians')
+            axes.set_ylabel('X\', milliradians')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
                     self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
@@ -1621,11 +1635,11 @@ class DesignerMainWindow(QMainWindow):
         # plot levels
         if int(self.comboBox.currentIndex()) == 7:
             self.clearPicture()
-            CS = axes.contour(X, Y, Z, linewidths=1.0, levels=levels[::-1])
+            CS = axes.contour(X, Y*1000.0, Z, linewidths=1.0, levels=levels[::-1])
             axes.grid(True)
-            axes.set_title('Emittance contours for levels')
+            axes.set_title('Emittance contour plot')
             axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliRadians')
+            axes.set_ylabel('X\', milliradians')
             labels = ['%2d %% of current' % (fr * 100) for fr in np.sort(fractions)[::-1]]
             for i in range(len(labels)):
                 CS.collections[i].set_label(labels[i])
