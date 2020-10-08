@@ -23,7 +23,16 @@
     <property name="sizeConstraint">
      <enum>QLayout::SetDefaultConstraint</enum>
     </property>
-    <property name="margin">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
      <number>0</number>
     </property>
     <item>
@@ -259,7 +268,16 @@
             </property>
             <widget class="QWidget" name="stackedWidgetPage1">
              <layout class="QHBoxLayout" name="horizontalLayout_4">
-              <property name="margin">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
                <number>0</number>
               </property>
               <item>
@@ -548,6 +566,16 @@
            <item>
             <property name="text">
              <string>18 Z5 [N,N] no divergence</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>19 Z1[N,nx-1] initial data</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>20 griddata(Z1)</string>
             </property>
            </item>
           </widget>

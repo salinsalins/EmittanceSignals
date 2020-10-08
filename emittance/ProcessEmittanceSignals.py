@@ -30,6 +30,7 @@ from PyQt5.QtCore import QPoint, QSize  # @UnresolvedImport @UnusedImport @Reimp
 import numpy as np
 from scipy.integrate import trapz
 from scipy.interpolate import interp1d
+from scipy.interpolate import griddata
 
 _progName = 'Emittance'
 _progVersion = '_8_3'
@@ -689,7 +690,7 @@ class DesignerMainWindow(QMainWindow):
             v = dtype(v)
         if info:
             self.logger.info('row:%d parameter:%s; return %s value:%s (default:%s; auto:%s; manual:%s)' % (
-            row, name, t, str(v), str(vd), str(va), str(vm)))
+                row, name, t, str(v), str(vd), str(va), str(vm)))
         if select == 'manual':
             return vm
         if select == 'auto':
@@ -781,24 +782,26 @@ class DesignerMainWindow(QMainWindow):
         return xsub, y, index
 
     def smoothX(self, x, y):
-        # filter x to be unique and smooth
-        n = len(x)
-        xmax = x.max()
-        xmin = x.min()
-        dx = (xmax - xmin) / (n - 1)
-        ys = np.zeros(n)
-        yn = np.zeros(n)
-        m = np.floor((x - xmin) / dx)
-        for i in range(n):
-            k = int(m[i])
-            ys[k] += y[i]
-            yn[k] += 1.0
-        mask = yn > 0.0
-        ay = np.zeros(n)
-        ay[mask] = ys[mask] / yn[mask]
-        # maskn = np.logical_not(mask)
-        ax = np.linspace(xmin, xmax, n)
-        return (ax[mask].copy(), ay[mask].copy())
+        # filter x to be unique and monotonic
+        ux, ui = np.unique(x, return_index=True)
+        return ux, y[ui]
+        # n = len(x)
+        # xmax = x.max()
+        # xmin = x.min()
+        # dx = (xmax - xmin) / (n - 1)
+        # ys = np.zeros(n)
+        # yn = np.zeros(n)
+        # m = np.floor((x - xmin) / dx)
+        # for i in range(n):
+        #     k = int(m[i])
+        #     ys[k] += y[i]
+        #     yn[k] += 1.0
+        # mask = yn > 0.0
+        # ay = np.zeros(n)
+        # ay[mask] = ys[mask] / yn[mask]
+        # # maskn = np.logical_not(mask)
+        # ax = np.linspace(xmin, xmax, n)
+        # return (ax[mask].copy(), ay[mask].copy())
 
     def readX0(self):
         nx = len(self.fileNames)
@@ -1213,7 +1216,7 @@ class DesignerMainWindow(QMainWindow):
             except:
                 pass
             try:
-                    s += 'MinI=%4d; Umin=%6.2f V; ' % (self.params[i]['minindex'], self.params[i]['minvoltage'])
+                s += 'MinI=%4d; Umin=%6.2f V; ' % (self.params[i]['minindex'], self.params[i]['minvoltage'])
             except:
                 pass
             self.logger.info(s)
@@ -1241,16 +1244,12 @@ class DesignerMainWindow(QMainWindow):
             yy = y[index]
             # convert to [Ampere/Radian/mm^2]
             zz = z[index] * l2 / d2 / a1
-            ymin = min([ymin, yy.min()])
-            ymax = max([ymax, yy.max()])
+            ymin = min(ymin, yy.min())
+            ymax = max(ymax, yy.max())
             (yyy, zzz) = self.smoothX(yy, zz)
-            F0[i] = interp1d(yyy, -zzz, kind='linear', bounds_error=False, fill_value=0.0)
+            F0[i] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
         # symmetry for Y range
-        if abs(ymin) > abs(ymax):
-            ymax = abs(ymin)
-        else:
-            ymax = abs(ymax)
-        ymax *= 1.05
+        ymax = max(abs(ymin), abs(ymax)) * 1.05
         ymin = -ymax
         # Y range array
         ys = np.linspace(ymin, ymax, N)
@@ -1274,6 +1273,27 @@ class DesignerMainWindow(QMainWindow):
             Z1[:, index[i]] = Z0[:, i]
             F1[index[i]] = F0[i]
 
+        if int(self.comboBox.currentIndex()) == 19:
+            # cross-section current
+            #Z3t = self.integrate2d(X3, Y3, Z3) * d1 * 1e6  # [mkA]
+            #self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
+            self.clearPicture()
+            axes.contour(X1, Y1, Z1)
+            axes.grid(True)
+            #axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
+            self.mplWidget.canvas.draw()
+            return
+
+        if int(self.comboBox.currentIndex()) == 20:
+            grid_x, grid_y = np.meshgrid(np.linspace(X1.min(), X1.max(), N), np.linspace(Y1.min(), Y1.max(), N))
+            points = np.r_['1,2,0', X1.flat, Y1.flat]
+            grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='nearest')
+            self.clearPicture()
+            axes.contour(grid_x, grid_y, grid_z)
+            axes.grid(True)
+            self.mplWidget.canvas.draw()
+            return
+
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.readParameter(0, 'center', 'avg') == 'max':
             n = np.argmax(Z1)
@@ -1283,6 +1303,7 @@ class DesignerMainWindow(QMainWindow):
             Z1t = self.integrate2d(X1, Y1, Z1)
             X1avg = self.integrate2d(X1, Y1, X1 * Z1) / Z1t
             Y1avg = self.integrate2d(X1, Y1, Y1 * Z1) / Z1t
+        self.logger.info('Average X1 %s, Y1 %s', X1avg, Y1avg)
         Z2 = Z1
         X2 = X1.copy() - X1avg
         Y2 = Y1.copy() - Y1avg
@@ -1306,7 +1327,16 @@ class DesignerMainWindow(QMainWindow):
         for i in range(nx - 1):
             z = Z2[:, i]
             imax = np.argmax(z)
-            Shift[i] = Y2[imax, i] + Y1avg
+            so = Y2[imax, i] + Y1avg
+            io = imax
+            zo = z
+            diap = np.linspace(Y2[imax-5, i], Y2[imax+5, i], 100) + Y1avg
+            z = F1[i](diap)
+            imax = np.argmax(z)
+            sn = diap[imax]
+            #print('shift old', so, zo[io], 'new', sn, z[imax])
+            Shift[i] = diap[imax]
+            #Shift[i] = Y2[imax, i] + Y1avg
             Z3[:, i] = F1[i](Y2[:, i] + Shift[i])
         # remove negative data
         Z3[Z3 < 0.0] = 0.0
@@ -1405,8 +1435,8 @@ class DesignerMainWindow(QMainWindow):
         X6 = X5
         Y6 = Y5
         Z6 = np.zeros((N, N), dtype=np.float64)
-        # g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
-        g = interp1d(X3[0, :], Shift, kind='linear', bounds_error=False, fill_value=0.0)
+        g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
+        #g = interp1d(X3[0, :], Shift, kind='linear', bounds_error=False, fill_value=0.0)
         for i in range(N):
             y = Y5[:, i]
             z = Z5[:, i]
@@ -1521,7 +1551,7 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('% Current  Normalized emittance      Normalized RMS emittance')
         for i in range(len(levels)):
             self.logger.info('%2.0f %%       %5.3f Pi*mm*milliRadians  %5.3f Pi*mm*milliRadians' % (
-            fractions[i] * 100.0, emit[i], rms[i]))
+                fractions[i] * 100.0, emit[i], rms[i]))
         self.logger.info('%2.0f %%                                %5.3f Pi*mm*milliRadians' % (100.0, self.RMS * beta))
         # return X and Y to symmetrical range
         X = X + Xavg
@@ -1567,7 +1597,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliRadians')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
-                        self.RMS * beta),
+                    self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
                           horizontalalignment='center', verticalalignment='top',
                           fontsize=11)
@@ -1582,7 +1612,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliRadians')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
-                        self.RMS * beta),
+                    self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
                           horizontalalignment='center', verticalalignment='top',
                           fontsize=11, color='white')
@@ -1687,7 +1717,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliRadians')
             axes.annotate('Cross-section I=%5.1f mkA' % (self.Ics * 1e6) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
-                        self.RMScs * beta),
+                    self.RMScs * beta),
                           xy=(.5, .2), xycoords='figure fraction',
                           horizontalalignment='center', verticalalignment='top',
                           fontsize=11)
