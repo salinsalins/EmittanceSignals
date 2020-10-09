@@ -1335,7 +1335,8 @@ class DesignerMainWindow(QMainWindow):
             y = y[mask]
             z = z[mask]
             points = np.r_['1,2,0', x, y]
-            grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
+            grid_z = griddata(points, z, (grid_x, grid_y), method='linear', fill_value=0.0)
+            # plot
             self.clearPicture()
             axes.contour(grid_x, grid_y, grid_z)
             axes.grid(True)
@@ -1353,14 +1354,19 @@ class DesignerMainWindow(QMainWindow):
         x = X1 - y/k
         z = Z1
         # interpolated with griddada
+        # mask = z >= 0.00
+        # x = x[mask]
+        # y = y[mask]
+        # z = z[mask]
         grid_x, grid_y = np.meshgrid(np.linspace(x.min(), x.max(), N), np.linspace(y.min(), y.max(), N))
-        mask = z >= 0.00
-        x = x[mask]
-        y = y[mask]
-        z = z[mask]
-        points = np.r_['1,2,0', x, y]
-        grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
+        points = np.r_['1,2,0', x.flat, y.flat]
+        grid_z = griddata(points, z.flat, (grid_x, grid_y), method='cubic', fill_value=0.0)
         x1 = grid_x + (grid_y / k)
+        y1 = grid_y
+        z1 = grid_z
+        grid_x1, grid_y1 = np.meshgrid(np.linspace(x1.min(), x1.max(), N), np.linspace(y1.min(), y1.max(), N))
+        points1 = np.r_['1,2,0', x1.flat, y1.flat]
+        grid_z1 = griddata(points1, z1.flat, (grid_x1, grid_y1), method='linear', fill_value=0.0)
         if int(self.comboBox.currentIndex()) == 21:
             # plot
             self.clearPicture()
@@ -1369,21 +1375,11 @@ class DesignerMainWindow(QMainWindow):
             axes.plot(X1[0, :], k*X1[0, :]+b, '-', color='blue')
             #axes.contour(x, y, z)
             #axes.contour(grid_x, grid_y, grid_z)
-            axes.contour(x1, grid_y, grid_z)
+            axes.contour(x1, y1, z1)
+            axes.contour(grid_y1, grid_y1, grid_z1)
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
-        x = x1
-        y = grid_y
-        z = grid_z
-        mask = np.isnan(z) == False
-        x = x[mask]
-        y = y[mask]
-        z = z[mask]
-        grid_x, grid_y = np.meshgrid(np.linspace(x.min(), x.max(), N), np.linspace(y.min(), y.max(), N))
-        points = np.r_['1,2,0', x, y]
-        grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
-        mask = np.isnan(grid_z)
         # X1 = grid_x
         # Y1 = grid_y
         # Z1 = grid_z
