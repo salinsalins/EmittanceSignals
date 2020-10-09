@@ -447,12 +447,12 @@ class DesignerMainWindow(QMainWindow):
         params[0]['l2'] = 195.0  # mm    Scanner base
 
         # X0 and ndh calculation
-        l1 = self.readParameter(0, "l1", 213.0, float)
-        l2 = self.readParameter(0, "l2", 195.0, float)
+        l1 = self.read_parameter(0, "l1", 213.0, float)
+        l2 = self.read_parameter(0, "l2", 195.0, float)
         x00 = np.zeros(nx - 1)
         for i in range(1, nx):
-            s = self.readParameter(i, "scale", 2.0, float)
-            u = self.readParameter(i, "minvoltage", 0.0, float)
+            s = self.read_parameter(i, "scale", 2.0, float)
+            u = self.read_parameter(i, "minvoltage", 0.0, float)
             x00[i - 1] = -s * u * l1 / l2
             # self.logger.info('%3d N=%d Umin=%f scale=%f X00=%f'%(i, j, u, s, x00[i-1]))
         npt = 0
@@ -491,8 +491,8 @@ class DesignerMainWindow(QMainWindow):
         h = h - h[k]
         for i in range(1, nx):
             params[i]['ndh'] = h[i - 1]
-            s = self.readParameter(i, "scale", 1.7, float)
-            u = self.readParameter(i, "minvoltage", 0.0, float)
+            s = self.read_parameter(i, "scale", 1.7, float)
+            u = self.read_parameter(i, "minvoltage", 0.0, float)
             x01[i - 1] = (h[i - 1] - s * u) * l1 / l2
             params[i]['x0'] = x01[i - 1]
             # self.logger.info('%3d'%i, end='  ')
@@ -515,13 +515,13 @@ class DesignerMainWindow(QMainWindow):
         for i in range(nx):
             try:
                 s = 'Chan.%3d ' % i
-                s = s + 'range=%s; ' % str(self.readParameter(i, "range"))
-                s = s + 'offset=%f V; ' % self.readParameter(i, "offset")
-                s = s + 'scale=%6.2f mm/V; ' % self.readParameter(i, "scale")
-                s = s + 'MinI=%4d; ' % (self.readParameter(i, "minindex"))
-                s = s + 'Umin=%6.2f V; ' % (self.readParameter(i, "minvoltage"))
-                s = s + 'x0=%5.1f mm; ' % (self.readParameter(i, "x0"))
-                s = s + 'ndh=%5.1f mm' % (self.readParameter(i, "ndh"))
+                s = s + 'range=%s; ' % str(self.read_parameter(i, "range"))
+                s = s + 'offset=%f V; ' % self.read_parameter(i, "offset")
+                s = s + 'scale=%6.2f mm/V; ' % self.read_parameter(i, "scale")
+                s = s + 'MinI=%4d; ' % (self.read_parameter(i, "minindex"))
+                s = s + 'Umin=%6.2f V; ' % (self.read_parameter(i, "minvoltage"))
+                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i, "x0"))
+                s = s + 'ndh=%5.1f mm' % (self.read_parameter(i, "ndh"))
             except:
                 pass
             self.logger.info(s)
@@ -654,7 +654,7 @@ class DesignerMainWindow(QMainWindow):
                 k = par[2]
                 x0 = x01.copy()
                 for i in range(1, nx):
-                    x0[i - 1] = self.readParameter(i, 'x0', 0.0, float)
+                    x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float)
                 self.clearPicture()
                 axes.set_title('X0 calculation')
                 axes.set_xlabel('Index')
@@ -668,7 +668,7 @@ class DesignerMainWindow(QMainWindow):
         except:
             self.printExceptionInfo()
 
-    def readParameter(self, row, name, default=None, dtype=None, info=False, select=''):
+    def read_parameter(self, row, name, default=None, dtype=None, info=False, select=''):
         if name == 'zero':
             return self.readZero(row)
         vd = default
@@ -722,17 +722,17 @@ class DesignerMainWindow(QMainWindow):
                     if zi[0] == -1:
                         # linear interpolation (-1, n1, n2)  y(n) = zeroLine(n)
                         z0 = self.data[row, :].copy()
-                        ns = self.readParameter(row, "smooth", self.spinBox.value(), int)
+                        ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
                         smooth(z0, ns)
-                        of = self.readParameter(row, "offset", 0.0, float)
+                        of = self.read_parameter(row, "offset", 0.0, float)
                         z0 = z0 - of  # minus is correct !!!
                         y1 = z0[zi[1]]
                         y2 = z0[zi[2]]
                         z[zi[1]:zi[2] + 1] = np.interp(np.arange(zi[1], zi[2] + 1), [zi[1], zi[2]], [y1, y2])
                     if zi[0] > 0:
                         z0 = self.data[zi[0], :].copy()
-                        ns = self.readParameter(zi[0], "smooth", 1, int)
-                        of = self.readParameter(zi[0], "offset", 0.0, float)
+                        ns = self.read_parameter(zi[0], "smooth", 1, int)
+                        of = self.read_parameter(zi[0], "offset", 0.0, float)
                         smooth(z0, 2 * ns)
                         z[zi[1]:zi[2]] = z0[zi[1]:zi[2]] + of
                 except:
@@ -748,14 +748,14 @@ class DesignerMainWindow(QMainWindow):
         # scan voltage
         u = self.data[0, :].copy()
         # smooth
-        ns = self.readParameter(0, "smooth", 100, int)
+        ns = self.read_parameter(0, "smooth", 100, int)
         smooth(u, 2 * ns)
         # signal
         y = self.data[row, :].copy()
         # smooth
-        ns = self.readParameter(row, "smooth", 1, int)
+        ns = self.read_parameter(row, "smooth", 1, int)
         # offset
-        of = self.readParameter(row, "offset", 0.0, float)
+        of = self.read_parameter(row, "offset", 0.0, float)
         # zero line
         z = self.readZero(row)
         # smooth
@@ -764,21 +764,23 @@ class DesignerMainWindow(QMainWindow):
         # subtract offset and zero
         y = y - z - of
         # load resistor
-        R = self.readParameter(0, "R", 2.0e5, float)
+        R = self.read_parameter(0, "R", 2.0e5, float)
         # convert signal to Amperes
         y = y / R
         # signal region
-        r0 = self.readParameter(0, "range", (0, len(y)))
-        r = self.readParameter(row, "range", r0)
+        r0 = self.read_parameter(0, "range", (0, len(y)))
+        r = self.read_parameter(row, "range", r0)
         index = np.arange(r[0], r[1])
         # scale
-        s = self.readParameter(row, "scale", 2.0, float)
+        s = self.read_parameter(row, "scale", 2.0, float)
         # ndh
-        ndh = self.readParameter(row, "ndh", 0.0, float)
+        ndh = self.read_parameter(row, "ndh", 0.0, float)
         # scanner base
-        l2 = self.readParameter(0, "l2", 195.0, float)
+        l1 = self.read_parameter(0, "l1", 195.0, float)
+        l2 = self.read_parameter(0, "l2", 195.0, float)
+        x0 = self.read_parameter(row, "x0", 0.0, float)
         # x' in Radians
-        xsub = (ndh - s * u) / l2
+        xsub = (ndh - s*u)/l2 + x0/l1
         return xsub, y, index
 
     def smoothX(self, x, y):
@@ -803,18 +805,20 @@ class DesignerMainWindow(QMainWindow):
         # ax = np.linspace(xmin, xmax, n)
         # return (ax[mask].copy(), ay[mask].copy())
 
-    def readX0(self):
-        nx = len(self.fileNames)
+    def read_x0(self, nx=None, init=False):
+        if nx is None:
+            nx = len(self.fileNames)
         if nx <= 0:
             return
-        self.execInitScript()
-        x0 = np.zeros(nx - 1)  # [mm] X0 coordinates of scans
-        flag = self.readParameter(0, 'autox0', False)
+        if init:
+            self.execInitScript()
+        x0 = np.linspace(-(nx - 1)/2.0, (nx - 1)/2.0, nx - 1) # [mm] X0 coordinates of scans
+        flag = self.read_parameter(0, 'autox0', False)
         for i in range(1, nx):
             if flag:
-                x0[i - 1] = self.readParameter(i, 'x0', 0.0, float, select='auto')
+                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float, select='auto')
             else:
-                x0[i - 1] = self.readParameter(i, 'x0', 0.0, float)
+                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float)
         return x0
 
     def plot(self, *args, **kwargs):
@@ -850,7 +854,7 @@ class DesignerMainWindow(QMainWindow):
         ix = self.spinBox_2.value()
         if ix >= 0:
             x = self.data[ix, :].copy()
-            ns = self.readParameter(ix, "smooth", self.spinBox.value(), int, True)
+            ns = self.read_parameter(ix, "smooth", self.spinBox.value(), int, True)
             smooth(x, ns)
             xTitle = 'Scan Voltage, V'
         else:
@@ -871,9 +875,9 @@ class DesignerMainWindow(QMainWindow):
         for i in indexes:
             row = i.row()
             y = self.data[row, :].copy()
-            ns = self.readParameter(row, "smooth", self.spinBox.value(), int)
+            ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
             smooth(y, ns)
-            z = self.readZero(row) + self.readParameter(row, 'offset')
+            z = self.readZero(row) + self.read_parameter(row, 'offset')
             axes.plot(x, y, label='raw ' + str(row))
             axes.plot(x, z, label='zero' + str(row))
         self.zoplot()
@@ -903,20 +907,20 @@ class DesignerMainWindow(QMainWindow):
             row = i.row()
             u, y, index = self.readSignal(row)
             # convert back from Amperes to Volts
-            y = y * self.readParameter(0, "R", 2.0e5, float)
+            y = y * self.read_parameter(0, "R", 2.0e5, float)
             # plot processed signal
             self.plot(x, y, label='proc ' + str(row))
             # highlight signal region
             self.plot(x[index], y[index], label='range' + str(row))
             self.logger.info('Plot Processed Signal %d' % row)
             # print parameters
-            self.readParameter(row, "smooth", 1, int, True)
-            self.readParameter(row, "offset", 0.0, float, True)
-            self.readParameter(row, "scale", 0.0, float, True)
-            self.readParameter(row, "x0", 0.0, float, True)
-            self.readParameter(row, "ndh", 0.0, float, True)
+            self.read_parameter(row, "smooth", 1, int, True)
+            self.read_parameter(row, "offset", 0.0, float, True)
+            self.read_parameter(row, "scale", 0.0, float, True)
+            self.read_parameter(row, "x0", 0.0, float, True)
+            self.read_parameter(row, "ndh", 0.0, float, True)
             # range vertical lines
-            r = self.readParameter(row, "range", (0, -1), None, True)
+            r = self.read_parameter(row, "range", (0, -1), None, True)
             self.voplot(x[r[0]])
             self.voplot(x[r[1] - 1])
         # plot zero line
@@ -945,9 +949,9 @@ class DesignerMainWindow(QMainWindow):
         row = indexes[0].row()
         x, xTitle = self.getX()
         y = self.data[row, :].copy()
-        ns = self.readParameter(row, "smooth", self.spinBox.value(), int)
+        ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
         smooth(y, ns)
-        z = self.readZero(row) + self.readParameter(row, 'offset')
+        z = self.readZero(row) + self.read_parameter(row, 'offset')
         axes.plot(x, y, label='raw ' + str(row))
         axes.plot(x, z, label='zero' + str(row))
         self.zoplot()
@@ -1020,27 +1024,27 @@ class DesignerMainWindow(QMainWindow):
 
         # calculate common values
         x0 = np.zeros(nx - 1)  # [mm] X0 coordinates of scans
-        flag = self.readParameter(0, 'autox0', False)
+        flag = self.read_parameter(0, 'autox0', False)
         # self.logger.info('', stamp=False)
         # self.logger.info('Emittance calculation using parameters:')
         # self.logger.info('Use calculated X0 = %s'%str(flag))
         for i in range(1, nx):
             if flag:
-                x0[i - 1] = self.readParameter(i, 'x0', 0.0, float, select='auto')
+                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float, select='auto')
             else:
-                x0[i - 1] = self.readParameter(i, 'x0', 0.0, float)
+                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float)
         # parameters
         # R
-        R = self.readParameter(0, 'R', 2.0e5, float)  # [Ohm] Faraday cup load resistior
+        R = self.read_parameter(0, 'R', 2.0e5, float)  # [Ohm] Faraday cup load resistior
         # l1
-        l1 = self.readParameter(0, 'l1', 213.0, float)  # [mm] distance from source to analyzer aperture
+        l1 = self.read_parameter(0, 'l1', 213.0, float)  # [mm] distance from source to analyzer aperture
         # l2
-        l2 = self.readParameter(0, 'l2', 195.0, float)  # [mm] analyzer base
+        l2 = self.read_parameter(0, 'l2', 195.0, float)  # [mm] analyzer base
         # d1 and hole area
-        d1 = self.readParameter(0, 'd1', 0.4, float)  # [mm] analyzer hole diameter
+        d1 = self.read_parameter(0, 'd1', 0.4, float)  # [mm] analyzer hole diameter
         a1 = np.pi * d1 * d1 / 4.0  # [mm**2] analyzer hole area
         # d2
-        d2 = self.readParameter(0, 'd2', 0.5, float)  # [mm] analyzer slit width
+        d2 = self.read_parameter(0, 'd2', 0.5, float)  # [mm] analyzer slit width
         # self.logger.info('R=%fOhm l1=%fmm l2=%fmm d1=%fmm d2=%fmm'%(R,l1,l2,d1,d2))
         # calculate maximum and integral profiles
         self.profilemax = np.zeros(nx - 1)
@@ -1171,120 +1175,157 @@ class DesignerMainWindow(QMainWindow):
             v[i] = trapz(z[:, i], y[:, i])
         return trapz(v, x[0, :])
 
-    def calculateEmittance(self):
+    def calculate_vertical_shift(self, y, f):
+        nx = len(f)
+        shift = np.zeros(nx)
+        values = np.zeros(nx)
+        for i in range(nx):
+            zz = f[i](y)
+            imax = np.argmax(zz)
+            diap = np.linspace(y[imax-5], y[imax+5], 100)
+            zz = f[i](diap)
+            imax = np.argmax(zz)
+            shift[i] = diap[imax]
+            values[i] = zz[imax]
+        return shift, values
 
+    def calculate_horizontal_shift(self, x, y, f):
+        nx = len(f)
+        ny = len(x[:, 0])
+        shift = np.zeros(ny)
+        for i in range(nx):
+            zz = f[i](y)
+            imax = np.argmax(zz)
+            diap = np.linspace(y[imax-5], y[imax+5], 100)
+            zz = f[i](diap)
+            imax = np.argmax(zz)
+            shift[i] = diap[imax]
+        return shift
+
+    def calculateEmittance(self):
         if self.data is None:
             return
+        # number of traces
         nx = len(self.fileNames)
         if nx <= 0:
             return
-
+        # plot area axes
         axes = self.mplWidget.canvas.ax
-
+        # init manual parameters
         self.execInitScript()
-
+        # constants
+        q = 1.6e-19         # [Q] electron charge
+        mp = 1.6726e-27     # [kg] proton mass
+        me = 9.1093e-31     # [kg] electron mass
+        c = 2.9979e8        # [m/s] speed of light
         # parameters
-        x0 = self.readX0()  # [mm] X0 coordinates of scans
-        ndh = np.zeros(nx - 1)  # [mm] displacement of analyzer slit (number n) from axis
-        x0auto = x0.copy()
+        R = self.read_parameter(0, 'R', 2.0e5, float)    # [Ohm] Faraday cup load resistor
+        L1 = self.read_parameter(0, 'l1', 213.0, float)  # [mm] distance from source to analyzer aperture
+        L2 = self.read_parameter(0, 'l2', 195.0, float)  # [mm] analyzer base
+        d1 = self.read_parameter(0, 'd1', 0.5, float)    # [mm] analyzer hole diameter
+        a1 = np.pi * d1 * d1 / 4.0                      # [mm**2] analyzer hole area
+        d2 = self.read_parameter(0, 'd2', 0.5, float)    # [mm] analyzer slit width
+        N = self.read_parameter(0, 'N', 200, int)        # number of points for emittance matrix
+        U = self.read_parameter(0, 'energy', 32000.0, float)
+        # calculated parameters
+        mhm = mp + 2.0*me               # mass of H-
+        V = np.sqrt(2.0 * q * U / mhm)  # [m/s] non relativistic H- speed
+        beta = V / c                    # beta = V/c
+        # channels parameters
+        x0 = self.read_x0()         # [mm] X0 coordinates of scans
+        ndh = np.zeros(nx - 1)      # [mm] displacement of analyzer slit (number n) from axis
+        ranges = []
+        scales = []
+        offsets = []
         for i in range(1, nx):
-            ndh[i - 1] = self.readParameter(i, 'ndh', 0.0, float)
-            x0auto[i - 1] = self.readParameter(i, 'x0', 0.0, float, select='auto')
-        # common parameters
-        R = self.readParameter(0, 'R', 2.0e5, float)  # [Ohm] Faraday cup load resistor
-        l1 = self.readParameter(0, 'l1', 213.0, float)  # [mm] distance from source to analyzer aperture
-        l2 = self.readParameter(0, 'l2', 195.0, float)  # [mm] analyzer base
-        d1 = self.readParameter(0, 'd1', 0.5, float)  # [mm] analyzer hole diameter
-        a1 = np.pi * d1 * d1 / 4.0  # [mm**2] analyzer hole area
-        d2 = self.readParameter(0, 'd2', 0.5, float)  # [mm] analyzer slit width
-
-        self.logger.info('Emittance calculation using parameters:')
-        self.logger.info('R=%fOhm; l1=%fmm; l2=%fmm; d1=%fmm; d2=%fmm' % (R, l1, l2, d1, d2))
+            ndh[i - 1] = self.read_parameter(i, 'ndh', 0.0, float)
+            ranges.append(self.read_parameter(i, 'range', (10, 9990)))
+            scales.append(self.read_parameter(i, 'scale', 2.0, float))
+            offsets.append(self.read_parameter(i, 'offset', 0.0, float))
+        # print parameters
+        self.logger.info('\n-------------------------------------------')
+        self.logger.info('Emittance calculation parameters:')
+        self.logger.info('Beam energy U=%f [V]', U)
+        self.logger.info('H- speed V=%e [m/s]', V)
+        self.logger.info('Beam beta=%e', beta)
+        self.logger.info('R=%f [Ohm]', R)
+        self.logger.info('L1=%f [mm]', L1)
+        self.logger.info('L2=%f [mm]', L2)
+        self.logger.info('d1=%f [mm]', d1)
+        self.logger.info('d2=%f [mm]', d2)
         for i in range(nx):
             s = 'Chan.%3d ' % i
-            s += 'x0=%5.1f mm; ndh=%5.1f mm; ' % (x0[i - 1], ndh[i - 1])
-            try:
-                s += 'range=%s; ' % str(self.readParameter(i, 'range'))
-            except:
-                pass
-            try:
-                s += 'offset=%f V; ' % self.params[i]['offset']
-            except:
-                pass
-            try:
-                s += 'scale=%6.2f mm/V; ' % self.readParameter(i, "scale", 1.7, float)
-            except:
-                pass
-            try:
-                s += 'MinI=%4d; Umin=%6.2f V; ' % (self.params[i]['minindex'], self.params[i]['minvoltage'])
-            except:
-                pass
-            self.logger.info(s)
+            if i > 0:
+                s += 'x0=%5.1f [mm]; ndh=%5.1f [mm]; ' % (x0[i-1], ndh[i-1])
+                s += 'range=%s; ' % ranges[i-1]
+                s += 'offset=%f [V]; ' % offsets[i-1]
+                self.logger.info(s)
 
         # calculate maximum and integral profiles
         self.calculateProfiles()
 
-        # number of points for emittance matrix
-        N = self.readParameter(0, 'N', 200, int)
-        # calculate (N x nx-1) initial arrays
+        # test x0 for unique and sort
+        x0u, x0i = np.unique(x0[1:], return_index=True)
+        if len(x0u) != len(x0)-1:
+            self.logger.error('Non unique X0')
+        nx = len(x0i)
+        # create (N x nx-1) initial arrays
         # X [mm] -- X axis of emittance plot
-        X0 = np.zeros((N, nx - 1), dtype=np.float64)
-        # X' [milliRadians] --  Y axis  of emittance plot
-        Y0 = np.zeros((N, nx - 1), dtype=np.float64)
-        # Z [mkA] signal or current density
-        Z0 = np.zeros((N, nx - 1), dtype=np.float64)
-        # F interpolating functions
-        F0 = list(range(nx - 1))
-        # Y range
-        ymin = 1.0e99
-        ymax = -1.0e99
+        X0 = np.zeros((N, nx), dtype=np.float64)
+        # X' [radians] --  Y axis  of emittance plot
+        Y0 = np.zeros((N, nx), dtype=np.float64)
+        # Z [V] -> [mkA] measured signals
+        Z0 = np.zeros((N, nx), dtype=np.float64)
+        # F interpolating functions Z[i,j] = F[i](Y[i,j])
+        F0 = list(range(nx))
         # calculate interpolating functions for initial data
-        for i in range(nx - 1):
-            y, z, index = self.readSignal(i + 1)  # y in [Radians]; z < 0.0 in [A]
+        ymin = 1e9
+        ymax = -1e9
+        for i in range(nx):
+            y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
             yy = y[index]
-            # convert to [Ampere/Radian/mm^2]
-            zz = z[index] * l2 / d2 / a1
             ymin = min(ymin, yy.min())
             ymax = max(ymax, yy.max())
+            # convert to [Ampere/Radian/mm^2]
+            zz = z[index] * L2 / d2 / a1
             (yyy, zzz) = self.smoothX(yy, zz)
-            F0[i] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
+            F0[x0i[i]] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
         # symmetry for Y range
         ymax = max(abs(ymin), abs(ymax)) * 1.05
         ymin = -ymax
         # Y range array
         ys = np.linspace(ymin, ymax, N)
         # fill data arrays
-        for i in range(nx - 1):
+        for i in range(nx):
             X0[:, i] = x0[i]
             Y0[:, i] = ys
             Z0[:, i] = F0[i](ys)
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
 
+        if int(self.comboBox.currentIndex()) == 19:
+            # initial data
+            self.clearPicture()
+            axes.contour(X0, Y0, Z0)
+            axes.grid(True)
+            axes.set_title('Z0 [N,nx-1] initial data')
+            self.mplWidget.canvas.draw()
+            return
+
         # X0,Y0,Z0,F0 -> X1,Y1,Z1,F1 sort data according rising x0
-        index = np.argsort(X0[0, :])
+        xu, index = np.unique(X0[0, :], return_index=True)
         X1 = X0.copy()
         Y1 = Y0.copy()
         Z1 = Z0.copy()
         F1 = list(F0)
-        for i in range(nx - 1):
+        for i in range(nx):
             X1[:, index[i]] = X0[:, i]
             Y1[:, index[i]] = Y0[:, i]
             Z1[:, index[i]] = Z0[:, i]
             F1[index[i]] = F0[i]
 
-        if int(self.comboBox.currentIndex()) == 19:
-            # cross-section current
-            #Z3t = self.integrate2d(X3, Y3, Z3) * d1 * 1e6  # [mkA]
-            #self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
-            self.clearPicture()
-            axes.contour(X1, Y1, Z1)
-            axes.grid(True)
-            #axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
-            self.mplWidget.canvas.draw()
-            return
-
         if int(self.comboBox.currentIndex()) == 20:
+            # Z1 2D interpolated with griddada
             grid_x, grid_y = np.meshgrid(np.linspace(X1.min(), X1.max(), N), np.linspace(Y1.min(), Y1.max(), N))
             x = X1.flat
             y = Y1.flat
@@ -1298,15 +1339,62 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(grid_x, grid_y, grid_z)
             axes.grid(True)
+            axes.set_title('Z1 2D interpolated with griddada')
             self.mplWidget.canvas.draw()
             return
 
+        shift, w = self.calculate_vertical_shift(Y1[:, 0], F1)
+        x = X1[0, :]
+        y = shift
+        # linear regression into shift
+        k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
+        b = y.mean() - k * x.mean()
+        y = Y1 - b
+        x = X1 - y/k
+        z = Z1
+        # interpolated with griddada
+        grid_x, grid_y = np.meshgrid(np.linspace(x.min(), x.max(), N), np.linspace(y.min(), y.max(), N))
+        mask = z >= 0.00
+        x = x[mask]
+        y = y[mask]
+        z = z[mask]
+        points = np.r_['1,2,0', x, y]
+        grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
+        x1 = grid_x + (grid_y / k)
+        if int(self.comboBox.currentIndex()) == 21:
+            # plot
+            self.clearPicture()
+            axes.contour(X1, Y1, Z1)
+            axes.plot(X1[0, :], shift, 'x-', color='red')
+            axes.plot(X1[0, :], k*X1[0, :]+b, '-', color='blue')
+            #axes.contour(x, y, z)
+            #axes.contour(grid_x, grid_y, grid_z)
+            axes.contour(x1, grid_y, grid_z)
+            axes.grid(True)
+            self.mplWidget.canvas.draw()
+            return
+        x = x1
+        y = grid_y
+        z = grid_z
+        mask = np.isnan(z) == False
+        x = x[mask]
+        y = y[mask]
+        z = z[mask]
+        grid_x, grid_y = np.meshgrid(np.linspace(x.min(), x.max(), N), np.linspace(y.min(), y.max(), N))
+        points = np.r_['1,2,0', x, y]
+        grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
+        mask = np.isnan(grid_z)
+        X1 = grid_x
+        Y1 = grid_y
+        Z1 = grid_z
+        Z1[mask] = 0.0
+
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
-        if self.readParameter(0, 'center', 'avg') == 'max':
+        if self.read_parameter(0, 'center', 'avg') == 'max':
             n = np.argmax(Z1.flat)
             X1avg = X1.flat[n]
             Y1avg = Y1.flat[n]
-        if self.readParameter(0, 'center', 'avg') == 'avg':
+        if self.read_parameter(0, 'center', 'avg') == 'avg':
             Z1t = self.integrate2d(X1, Y1, Z1)
             X1avg = self.integrate2d(X1, Y1, X1 * Z1) / Z1t
             Y1avg = self.integrate2d(X1, Y1, Y1 * Z1) / Z1t
@@ -1333,8 +1421,8 @@ class DesignerMainWindow(QMainWindow):
         X3 = X2
         Y3 = Y2
         Z3 = Z2.copy()
-        Shift = np.zeros(nx - 1, dtype=np.float64)
-        for i in range(nx - 1):
+        Shift = np.zeros(nx, dtype=np.float64)
+        for i in range(nx):
             z = Z2[:, i]
             imax = np.argmax(z)
             so = Y2[imax, i] + Y1avg
@@ -1358,11 +1446,12 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(X3, Y3, Z3)
             axes.contour(X2, Y2, Z2)
-            axes.plot(X2[0, :], Shift-Y1avg, color='red')
+            axes.plot(X2[0, :], Shift-Y1avg, 'x-', color='red')
             axes.grid(True)
             axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
             self.mplWidget.canvas.draw()
             return
+
         # debug draw 17
         if int(self.comboBox.currentIndex()) == 17:
             self.clearPicture()
@@ -1482,13 +1571,6 @@ class DesignerMainWindow(QMainWindow):
             return
 
         # calculate emittance values
-        q = 1.6e-19  # [Q] electron charge
-        m = 1.6726e-27  # [kg]  proton mass
-        c = 2.9979e8  # [m/s] speed of light
-        U = self.readParameter(0, 'energy', 32000.0, float)
-        self.logger.info('Beam energy U= %f V' % U)
-        beta = np.sqrt(2.0 * q * U / m) / c
-        self.logger.info('beta=%e' % beta)
         # X6,Y6,Z6 -> X,Y,Z final array X and Y centered to plot and emittance calculation
         X = X6
         Y = Y6
@@ -1548,7 +1630,7 @@ class DesignerMainWindow(QMainWindow):
             zr[i] = np.sqrt(max([xxs * yys - xys * xys, 0.0])) * 1000.0
 
         # levels to draw
-        fractions = np.array(self.readParameter(0, 'fractions', [0.5, 0.7, 0.9]))
+        fractions = np.array(self.read_parameter(0, 'fractions', [0.5, 0.7, 0.9]))
         levels = fractions * 0.0
         emit = fractions * 0.0
         rms = fractions * 0.0
@@ -1571,11 +1653,11 @@ class DesignerMainWindow(QMainWindow):
         X = X + Xavg
         Y = Y + Yavg
         # subtract average values 
-        if self.readParameter(0, 'center', 'avg') == 'max':
+        if self.read_parameter(0, 'center', 'avg') == 'max':
             n = np.argmax(Z)
             Xavg = X.flat[n]
             Yavg = Y.flat[n]
-        if self.readParameter(0, 'center', 'avg') == 'avg':
+        if self.read_parameter(0, 'center', 'avg') == 'avg':
             Zt = self.integrate2d(X, Y, Z)  # [A]
             Xavg = self.integrate2d(X, Y, X * Z) / Zt
             Yavg = self.integrate2d(X, Y, Y * Z) / Zt
@@ -1694,11 +1776,11 @@ class DesignerMainWindow(QMainWindow):
             X = X6
             Y = Y6
             Z = Z6  # [A/mm^2/Radian]
-            if self.readParameter(0, 'center', 'avg') == 'max':
+            if self.read_parameter(0, 'center', 'avg') == 'max':
                 n = np.argmax(Z)
                 Xavg = X.flat[n]
                 Yavg = Y.flat[n]
-            if self.readParameter(0, 'center', 'avg') == 'avg':
+            if self.read_parameter(0, 'center', 'avg') == 'avg':
                 Zt = self.integrate2d(X, Y, Z)  # [A]
                 Xavg = self.integrate2d(X, Y, X * Z) / Zt
                 Yavg = self.integrate2d(X, Y, Y * Z) / Zt

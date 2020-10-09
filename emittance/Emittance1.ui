@@ -578,6 +578,11 @@
              <string>20 griddata(Z1)</string>
             </property>
            </item>
+           <item>
+            <property name="text">
+             <string>21 removed X't</string>
+            </property>
+           </item>
           </widget>
          </item>
          <item>
