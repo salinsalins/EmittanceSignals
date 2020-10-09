@@ -1384,10 +1384,10 @@ class DesignerMainWindow(QMainWindow):
         points = np.r_['1,2,0', x, y]
         grid_z = griddata(points, z, (grid_x, grid_y), method='linear')
         mask = np.isnan(grid_z)
-        X1 = grid_x
-        Y1 = grid_y
-        Z1 = grid_z
-        Z1[mask] = 0.0
+        # X1 = grid_x
+        # Y1 = grid_y
+        # Z1 = grid_z
+        # Z1[mask] = 0.0
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
@@ -1688,10 +1688,13 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(X, Y*1000.0, Z, linewidths=1.0)
             axes.grid(True)
-            axes.set_title('Emittance contour plot')
+            #axes.set_title('Emittance contour plot')
+            axes.set_title('Диаграмма эмиттанса')
             # axes.set_ylim([ymin,ymax])
+            #axes.set_xlabel('X, мм')
             axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliradians')
+            #axes.set_ylabel('X\', milliradians')
+            axes.set_ylabel('X\', миллирадиан')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
                     self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
@@ -1722,7 +1725,11 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Emittance contour plot')
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliradians')
-            labels = ['%2d %% of current' % (fr * 100) for fr in np.sort(fractions)[::-1]]
+            axes.set_title('Диаграмма эмиттанса')
+            axes.set_xlabel('X, мм')
+            axes.set_ylabel('X\', миллирадиан')
+            #labels = ['%2d %% of current' % (fr * 100) for fr in np.sort(fractions)[::-1]]
+            labels = ['%2d %% тока' % (fr * 100) for fr in np.sort(fractions)[::-1]]
             for i in range(len(labels)):
                 CS.collections[i].set_label(labels[i])
             axes.legend(loc='upper left')
@@ -1733,6 +1740,7 @@ class DesignerMainWindow(QMainWindow):
             #               fontsize=11)
             self.mplWidget.canvas.draw()
             return
+
         # Emittance contour plot of beam cross-section
         if int(self.comboBox.currentIndex()) == 8:
             # X3,Y3,Z3 -> X5,Y5,Z5 resample to NxN array
