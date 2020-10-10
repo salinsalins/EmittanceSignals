@@ -1389,9 +1389,9 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
-        X1 = grid_x
-        Y1 = grid_y
-        Z1 = grid_z
+        # X1 = grid_x
+        # Y1 = grid_y
+        # Z1 = grid_z
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
