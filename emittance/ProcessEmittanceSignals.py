@@ -1202,6 +1202,19 @@ class DesignerMainWindow(QMainWindow):
             shift[i] = diap[imax]
         return shift
 
+    def grid(self, x, y, n, nx=None, ny=None):
+        limx = max(abs(x.max()), abs(x.min()))
+        if nx is None:
+            nx = n
+        xg = np.linspace(-limx, limx, nx)
+        limy = max(abs(y.max()), abs(y.min()))
+        if ny is None:
+            ny = n
+        yg = np.linspace(-limy, limy, ny)
+        grid_x, grid_y = np.meshgrid(xg, yg)
+        return grid_x, grid_y
+
+
     def calculateEmittance(self):
         if self.data is None:
             return
@@ -1366,7 +1379,11 @@ class DesignerMainWindow(QMainWindow):
         z1 = grid_z
         # interpolate for rectangular grid
         points1 = np.r_['1,2,0', x1.flat, y1.flat]
-        grid_x1, grid_y1 = np.meshgrid(np.linspace(x1.min(), x1.max(), N), np.linspace(y1.min(), y1.max(), N))
+        limx = max(abs(x1.max()), abs(x1.min()))
+        xg = np.linspace(-limx, limx, N)
+        limy = max(abs(y1.max()), abs(y1.min()))
+        yg = np.linspace(-limy, limy, N)
+        grid_x1, grid_y1 = np.meshgrid(xg, yg)
         grid_z1 = griddata(points1, z1.flat, (grid_x1, grid_y1), method='linear', fill_value=0.0)
         if int(self.comboBox.currentIndex()) == 21:
             # plot
@@ -1389,9 +1406,10 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
-        # X1 = grid_x
-        # Y1 = grid_y
-        # Z1 = grid_z
+        #
+        X1 = grid_x1
+        Y1 = grid_y1
+        Z1 = grid_z1
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
