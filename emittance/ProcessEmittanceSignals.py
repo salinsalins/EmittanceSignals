@@ -1350,40 +1350,48 @@ class DesignerMainWindow(QMainWindow):
         # linear regression into shift
         k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
         b = y.mean() - k * x.mean()
+        # shift to emission aperture
         y = Y1 - b
         x = X1 - y/k
         z = Z1
-        # interpolated with griddada
-        # mask = z >= 0.00
-        # x = x[mask]
-        # y = y[mask]
-        # z = z[mask]
-        grid_x, grid_y = np.meshgrid(np.linspace(x.min(), x.max(), N), np.linspace(y.min(), y.max(), N))
-        points = np.r_['1,2,0', x.flat, y.flat]
-        grid_z = griddata(points, z.flat, (grid_x, grid_y), method='cubic', fill_value=0.0)
+        # interpolate shifted data
+        # use mask to narrow x and y range
+        mask = z > 0.005*z.max()
+        points = np.r_['1,2,0', x[mask].flat, y[mask].flat]
+        grid_x, grid_y = np.meshgrid(np.linspace(x[mask].min(), x[mask].max(), N), np.linspace(y[mask].min(), y[mask].max(), N))
+        grid_z = griddata(points, z[mask].flat, (grid_x, grid_y), method='linear', fill_value=0.0)
+        # shift back from emission aperture
         x1 = grid_x + (grid_y / k)
         y1 = grid_y
         z1 = grid_z
-        grid_x1, grid_y1 = np.meshgrid(np.linspace(x1.min(), x1.max(), N), np.linspace(y1.min(), y1.max(), N))
+        # interpolate for rectangular grid
         points1 = np.r_['1,2,0', x1.flat, y1.flat]
+        grid_x1, grid_y1 = np.meshgrid(np.linspace(x1.min(), x1.max(), N), np.linspace(y1.min(), y1.max(), N))
         grid_z1 = griddata(points1, z1.flat, (grid_x1, grid_y1), method='linear', fill_value=0.0)
         if int(self.comboBox.currentIndex()) == 21:
             # plot
             self.clearPicture()
-            axes.contour(X1, Y1, Z1)
-            axes.plot(X1[0, :], shift, 'x-', color='red')
-            axes.plot(X1[0, :], k*X1[0, :]+b, '-', color='blue')
+            # initial
+            #axes.contour(X1, Y1, Z1)
+            #axes.plot(X1, Y1, '.', color='red', linewidth=1.0, markersize=1.0)
+            #axes.plot(X1[0, :], shift, 'x-', color='red')
+            #axes.plot(X1[0, :], k*X1[0, :]+b, '-', color='blue')
+            # shifted to EA
             #axes.contour(x, y, z)
-            #axes.contour(grid_x, grid_y, grid_z)
+            #axes.plot(x, y, '.', color='blue', linewidth=1.0, markersize=1.0)
+            # shifted and interpolated
+            axes.contour(grid_x, grid_y, grid_z)
+            #axes.plot(grid_x, grid_y, '.', color='black', linewidth=1.0, markersize=1.0)
             axes.contour(x1, y1, z1)
-            axes.contour(grid_y1, grid_y1, grid_z1)
+            #axes.plot(x1, y1, '.', color='red', linewidth=1.0, markersize=1.0)
+            #axes.contour(grid_x1, grid_y1, grid_z1)
+            #axes.plot(grid_x1, grid_y1, '.', color='black', linewidth=1.0, markersize=1.0)
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
-        # X1 = grid_x
-        # Y1 = grid_y
-        # Z1 = grid_z
-        # Z1[mask] = 0.0
+        X1 = grid_x
+        Y1 = grid_y
+        Z1 = grid_z
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
