@@ -1145,11 +1145,13 @@ class DesignerMainWindow(QMainWindow):
         #     y_max[i] = max(F[i])
         def f(x0, y0):
             if x0 > x_max or x0 < x_min:
-                return float('nan')
+                return 0.0
+            k = 0
             for i in range(nx):
                 if x1[i] >= x0:
+                    k = i
                     break
-            xi = i
+            xi = k
             if xi == 0:
                 return F[xi](y0)
             y1 = s[xi]
@@ -1300,7 +1302,7 @@ class DesignerMainWindow(QMainWindow):
             (yyy, zzz) = self.smoothX(yy, zz)
             F0[x0i[i]] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
         # symmetry for Y range
-        ymax = max(abs(ymin), abs(ymax)) * 1.05
+        ymax = max(abs(ymin), abs(ymax))
         ymin = -ymax
         # Y range array
         ys = np.linspace(ymin, ymax, N)
