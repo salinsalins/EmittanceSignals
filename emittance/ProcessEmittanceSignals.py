@@ -1132,40 +1132,37 @@ class DesignerMainWindow(QMainWindow):
                 fontsize=11)
             self.mplWidget.canvas.draw()
 
-    # experimental interpolation function
-
-    def interpolatePlot(self, x, y, F):
-        # x,F -> x1,F1 sort data according rising x0
-        nx = len(x)
-        index = np.argsort(x)
-        x1 = x.copy()
-        F1 = list(F)
-        for i in range(nx):
-            x1[index[i]] = x[i]
-            F1[index[i]] = F[i]
-
-        # shift jets maximum to X'=0 (remove equivalent regular divergence)
-        shift = np.zeros(nx, dtype=np.float64)
-        for i in range(nx):
-            z = F1[i](y)
-            imax = np.argmax(z)
-            shift[i] = y[imax]
-        fs = interp1d(x1, shift, kind='cubic', bounds_error=False, fill_value=0.0)
-        z = np.zeros(nx, dtype=np.float64)
-
-        def answer(ax, ay):
-            # calculate shifted function at x
-            by = ay - fs(ax)
+    def interpolate(self, x, s, F):
+        # x1, index = np.unique(x, return_index=True)
+        # F1 = F[index]
+        x1 = x
+        F1 = F
+        nx = len(x1)
+        x_min = x1.min()
+        x_max = x1.max()
+        # y_max = x1.copy()
+        # for i in range(nx):
+        #     y_max[i] = max(F[i])
+        def f(x0, y0):
+            if x0 > x_max or x0 < x_min:
+                return float('nan')
             for i in range(nx):
-                z[i] = F1[i](by + shift[i])
-            # interpolate over x1
-            fx = interp1d(x1, z, kind='cubic', bounds_error=False, fill_value=0.0)
-            # calculate result
-            return fx(ax)
-
-        return answer
-
-    # integrate from radial to linear
+                if x1[i] >= x0:
+                    break
+            xi = i
+            if xi == 0:
+                return F[xi](y0)
+            y1 = s[xi]
+            y2 = s[xi-1]
+            dx = x1[xi] - x1[xi-1]
+            d1 = x1[xi-1] - x0
+            d2 = x1[xi] - x0
+            dy = y2 - y1
+            d = dy / dx
+            f1 = F[xi-1](y0 + d * d1)
+            f2 = F[xi](y0 + d * d2)
+            return (f1 * d1 + f2 * d2) / dx
+        return f
 
     def integrate2d(self, x, y, z):
         sh = np.shape(z)
@@ -1213,7 +1210,6 @@ class DesignerMainWindow(QMainWindow):
         yg = np.linspace(-limy, limy, ny)
         grid_x, grid_y = np.meshgrid(xg, yg)
         return grid_x, grid_y
-
 
     def calculateEmittance(self):
         if self.data is None:
@@ -1280,7 +1276,7 @@ class DesignerMainWindow(QMainWindow):
         # test x0 for unique and sort
         x0u, x0i = np.unique(x0[1:], return_index=True)
         if len(x0u) != len(x0)-1:
-            self.logger.error('Non unique X0')
+            self.logger.info('Non unique X0')
         nx = len(x0i)
         # create (N x nx-1) initial arrays
         # X [mm] -- X axis of emittance plot
@@ -1385,6 +1381,12 @@ class DesignerMainWindow(QMainWindow):
         yg = np.linspace(-limy, limy, N)
         grid_x1, grid_y1 = np.meshgrid(xg, yg)
         grid_z1 = griddata(points1, z1.flat, (grid_x1, grid_y1), method='linear', fill_value=0.0)
+        g = self.interpolate(X1[0, :], shift, F1)
+        gz = grid_x1.copy()
+        i = 0
+        for x in grid_x1.flat:
+            gz.flat[i] = g(x, grid_y1.flat[i])
+            i += 1
         if int(self.comboBox.currentIndex()) == 21:
             # plot
             self.clearPicture()
@@ -1397,19 +1399,20 @@ class DesignerMainWindow(QMainWindow):
             #axes.contour(x, y, z)
             #axes.plot(x, y, '.', color='blue', linewidth=1.0, markersize=1.0)
             # shifted and interpolated
-            axes.contour(grid_x, grid_y, grid_z)
+            #axes.contour(grid_x, grid_y, grid_z)
             #axes.plot(grid_x, grid_y, '.', color='black', linewidth=1.0, markersize=1.0)
-            axes.contour(x1, y1, z1)
+            #axes.contour(x1, y1, z1)
             #axes.plot(x1, y1, '.', color='red', linewidth=1.0, markersize=1.0)
             #axes.contour(grid_x1, grid_y1, grid_z1)
+            axes.contour(grid_x1, grid_y1, gz)
             #axes.plot(grid_x1, grid_y1, '.', color='black', linewidth=1.0, markersize=1.0)
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
         #
-        X1 = grid_x1
-        Y1 = grid_y1
-        Z1 = grid_z1
+        # X1 = grid_x1
+        # Y1 = grid_y1
+        # Z1 = grid_z1
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
