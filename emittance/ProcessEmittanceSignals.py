@@ -1143,29 +1143,36 @@ class DesignerMainWindow(QMainWindow):
         # y_max = x1.copy()
         # for i in range(nx):
         #     y_max[i] = max(F[i])
-        def f(x0, y0):
-            xx = np.array(x0).flatten()
-            yy = np.array(y0).flatten()
-            if len(xx) != len(yy):
-                xx = xx[0]
-                yy = yy[0]
-            if x0 > x_max or x0 < x_min:
+        def f(x, y):
+            # result = np.zeros_like(x)
+            # if x.size > 1 and y.size > 1:
+            #     if x.shape != y.shape:
+            #         raise IndexError('X and Y shape mismatch')
+            # elif x.size == 1:
+            #     x = np.full_like(y, x)
+            #     result = np.zeros_like(y)
+            # elif y.size == 1:
+            #     y = np.full_like(x, y)
+            # mask = x > x_max or x < x_min
+            # result[mask] = 0.0
+            # mask = ~mask
+            if x > x_max or x < x_min:
                 return 0.0
             for i in range(nx):
-                if x1[i] > x0:
+                if x1[i] > x:
                     break
             xi = i
             if xi == 0:
-                return F[xi](y0)
+                return F[xi](y)
             y1 = s[xi-1]
             y2 = s[xi]
             dx = x1[xi] - x1[xi-1]
-            d1 = x0 - x1[xi-1]
-            d2 = x1[xi] - x0
+            d1 = x - x1[xi - 1]
+            d2 = x1[xi] - x
             dy = y2 - y1
             d = dy / dx
-            f1 = F[xi-1](y0 - d * d1)
-            f2 = F[xi](y0 + d * d2)
+            f1 = F[xi-1](y - d * d1)
+            f2 = F[xi](y + d * d2)
             return (f1 * d2 + f2 * d1) / dx
         return f
 
@@ -1190,19 +1197,6 @@ class DesignerMainWindow(QMainWindow):
             shift[i] = diap[imax]
             values[i] = zz[imax]
         return shift, values
-
-    def calculate_horizontal_shift(self, x, y, f):
-        nx = len(f)
-        ny = len(x[:, 0])
-        shift = np.zeros(ny)
-        for i in range(nx):
-            zz = f[i](y)
-            imax = np.argmax(zz)
-            diap = np.linspace(y[imax-5], y[imax+5], 100)
-            zz = f[i](diap)
-            imax = np.argmax(zz)
-            shift[i] = diap[imax]
-        return shift
 
     def grid(self, x, y, n, nx=None, ny=None):
         limx = max(abs(x.max()), abs(x.min()))
@@ -1247,7 +1241,7 @@ class DesignerMainWindow(QMainWindow):
         beta = V / c                    # beta = V/c
         # channels parameters
         x0 = self.read_x0()         # [mm] X0 coordinates of scans
-        ndh = np.zeros(nx - 1)      # [mm] displacement of analyzer slit (number n) from axis
+        ndh = np.zeros_like(x0)     # [mm] displacement of analyzer slit (number n) from axis
         ranges = []
         scales = []
         offsets = []
@@ -1262,11 +1256,12 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Beam energy U=%f [V]', U)
         self.logger.info('H- speed V=%e [m/s]', V)
         self.logger.info('Beam beta=%e', beta)
-        self.logger.info('R=%f [Ohm]', R)
-        self.logger.info('L1=%f [mm]', L1)
-        self.logger.info('L2=%f [mm]', L2)
-        self.logger.info('d1=%f [mm]', d1)
-        self.logger.info('d2=%f [mm]', d2)
+        self.logger.info('Load resistor R=%f [Ohm]', R)
+        self.logger.info('From source to the scanner L1=%f [mm]', L1)
+        self.logger.info('Scanner base L2=%f [mm]', L2)
+        self.logger.info('Aperture diameter d1=%f [mm]', d1)
+        self.logger.info('Slit width d2=%f [mm]', d2)
+        s = ''
         for i in range(nx):
             s = 'Chan.%3d ' % i
             if i > 0:
@@ -1278,7 +1273,7 @@ class DesignerMainWindow(QMainWindow):
         # calculate maximum and integral profiles
         self.calculateProfiles()
 
-        # test x0 for unique and sort
+        # test x0 for unique and sort for all channel except 0
         x0u, x0i = np.unique(x0[1:], return_index=True)
         if len(x0u) != len(x0)-1:
             self.logger.info('Non unique X0')
@@ -1302,7 +1297,8 @@ class DesignerMainWindow(QMainWindow):
             ymax = max(ymax, yy.max())
             # convert to [Ampere/Radian/mm^2]
             zz = z[index] * L2 / d2 / a1
-            (yyy, zzz) = self.smoothX(yy, zz)
+            yyy, ui = np.unique(yy, return_index=True)
+            zzz = zz[ui]
             F0[x0i[i]] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
         # symmetry for Y range
         ymax = max(abs(ymin), abs(ymax))
@@ -1463,72 +1459,22 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             return
 
-        # # X2,Y2,Z2 -> X3,Y3,Z3 shift jets maximum to X'=0 (remove equivalent regular divergence)
-        X3 = X2
-        Y3 = Y2
-        Z3 = Z2.copy()
-        # Shift = np.zeros(nx, dtype=np.float64)
-        # for i in range(nx):
-        #     z = Z2[:, i]
-        #     imax = np.argmax(z)
-        #     so = Y2[imax, i] + Y1avg
-        #     io = imax
-        #     zo = z
-        #     diap = np.linspace(Y2[imax-5, i], Y2[imax+5, i], 100) + Y1avg
-        #     z = F1[i](diap)
-        #     imax = np.argmax(z)
-        #     sn = diap[imax]
-        #     #print('shift old', so, zo[io], 'new', sn, z[imax])
-        #     Shift[i] = diap[imax]
-        #     #Shift[i] = Y2[imax, i] + Y1avg
-        #     Z3[:, i] = F1[i](Y2[:, i] + Shift[i])
-        # # remove negative data
-        # Z3[Z3 < 0.0] = 0.0
-        # # debug draw 11
-        # if int(self.comboBox.currentIndex()) == 11:
-        #     # cross-section current
-        #     Z3t = self.integrate2d(X3, Y3, Z3) * d1 * 1e6  # [mkA]
-        #     self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
-        #     self.clearPicture()
-        #     axes.contour(X3, Y3, Z3)
-        #     axes.contour(X2, Y2, Z2)
-        #     axes.plot(X2[0, :], Shift-Y1avg, 'x-', color='red')
-        #     axes.grid(True)
-        #     axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
-        #     self.mplWidget.canvas.draw()
-        #     return
-        #
-        # # debug draw 17
-        # if int(self.comboBox.currentIndex()) == 17:
-        #     self.clearPicture()
-        #     indexes = self.listWidget.selectedIndexes()
-        #     for j in indexes:
-        #         k = j.row()
-        #         self.plot(Y3[:, k - 1] * 1e3, Z3[:, k - 1] * 1e6, '.-', label='sh' + str(k))
-        #         self.plot(Y1[:, k - 1] * 1e3, Z1[:, k - 1] * 1e6, '.-', label='or' + str(k))
-        #     axes.set_title('Shifted elementary jets')
-        #     axes.set_xlabel('X\', milliRadians')
-        #     axes.set_ylabel('Current, mkA')
-        #     self.mplWidget.canvas.draw()
-        #     return
-
         # X3,Y3,Z3 -> X4,Y4,Z4 integrate emittance from cross-section to circular beam
-        X4 = X3
-        Y4 = Y3
-        Z4 = Z3.copy()
-        x = X3[0, :].flatten()
+        X4 = X2
+        Y4 = Y2
+        Z4 = Z2.copy()
+        x = X4[0, :].flatten()
         y = x.copy() * 0.0
         for i in range(len(x) - 1):
             xi = x[i]
             if xi >= 0.0:
                 mask = x > xi
-                # print(xi)
                 y[mask] = np.sqrt(x[mask] ** 2 - xi ** 2)
             if xi < 0.0:
                 mask = x < xi
                 y[mask] = -np.sqrt(x[mask] ** 2 - xi ** 2)
             for k in range(N):
-                z = Z3[k, :].copy()
+                z = Z2[k, :].copy()
                 Z4[k, i] = 2.0 * trapz(z[mask], y[mask])
         Z4[Z4 < 0.0] = 0.0
         if int(self.comboBox.currentIndex()) == 13:
