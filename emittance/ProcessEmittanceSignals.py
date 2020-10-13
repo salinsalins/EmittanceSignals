@@ -1144,26 +1144,29 @@ class DesignerMainWindow(QMainWindow):
         # for i in range(nx):
         #     y_max[i] = max(F[i])
         def f(x0, y0):
+            xx = np.array(x0).flatten()
+            yy = np.array(y0).flatten()
+            if len(xx) != len(yy):
+                xx = xx[0]
+                yy = yy[0]
             if x0 > x_max or x0 < x_min:
                 return 0.0
-            k = 0
             for i in range(nx):
-                if x1[i] >= x0:
-                    k = i
+                if x1[i] > x0:
                     break
-            xi = k
+            xi = i
             if xi == 0:
                 return F[xi](y0)
-            y1 = s[xi]
-            y2 = s[xi-1]
+            y1 = s[xi-1]
+            y2 = s[xi]
             dx = x1[xi] - x1[xi-1]
-            d1 = x1[xi-1] - x0
+            d1 = x0 - x1[xi-1]
             d2 = x1[xi] - x0
             dy = y2 - y1
             d = dy / dx
-            f1 = F[xi-1](y0 + d * d1)
+            f1 = F[xi-1](y0 - d * d1)
             f2 = F[xi](y0 + d * d2)
-            return (f1 * d1 + f2 * d2) / dx
+            return (f1 * d2 + f2 * d1) / dx
         return f
 
     def integrate2d(self, x, y, z):
@@ -1408,13 +1411,29 @@ class DesignerMainWindow(QMainWindow):
             #axes.contour(grid_x1, grid_y1, grid_z1)
             axes.contour(grid_x1, grid_y1, gz)
             #axes.plot(grid_x1, grid_y1, '.', color='black', linewidth=1.0, markersize=1.0)
+            # n = 27
+            # gy = yg.copy()
+            # i = 0
+            # for v in yg:
+            #     gy[i] = g(X1[0, n], v)
+            #     i += 1
+            # axes.plot(yg, gy, label='g')
+            # axes.plot(yg, F1[n](yg), label='f0')
+            # axes.plot(yg, F1[n-1](yg), label='f-')
+            # axes.plot(yg, F1[n+1](yg), label='f+')
+            # i = 0
+            # for v in yg:
+            #     gy[i] = g((X1[0, n]+X1[0, n-1])/2, v)
+            #     i += 1
+            # axes.plot(yg, gy, label='g-1/2')
+            # axes.legend(loc='best')
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
-        #
-        # X1 = grid_x1
-        # Y1 = grid_y1
-        # Z1 = grid_z1
+
+        X1 = grid_x1
+        Y1 = grid_y1
+        Z1 = gz
 
         # X1,Y1,Z1 -> X2,Y2,Z2 remove average X and Y
         if self.read_parameter(0, 'center', 'avg') == 'max':
@@ -1444,62 +1463,62 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             return
 
-        # X2,Y2,Z2 -> X3,Y3,Z3 shift jets maximum to X'=0 (remove equivalent regular divergence)
+        # # X2,Y2,Z2 -> X3,Y3,Z3 shift jets maximum to X'=0 (remove equivalent regular divergence)
         X3 = X2
         Y3 = Y2
         Z3 = Z2.copy()
-        Shift = np.zeros(nx, dtype=np.float64)
-        for i in range(nx):
-            z = Z2[:, i]
-            imax = np.argmax(z)
-            so = Y2[imax, i] + Y1avg
-            io = imax
-            zo = z
-            diap = np.linspace(Y2[imax-5, i], Y2[imax+5, i], 100) + Y1avg
-            z = F1[i](diap)
-            imax = np.argmax(z)
-            sn = diap[imax]
-            #print('shift old', so, zo[io], 'new', sn, z[imax])
-            Shift[i] = diap[imax]
-            #Shift[i] = Y2[imax, i] + Y1avg
-            Z3[:, i] = F1[i](Y2[:, i] + Shift[i])
-        # remove negative data
-        Z3[Z3 < 0.0] = 0.0
-        # debug draw 11
-        if int(self.comboBox.currentIndex()) == 11:
-            # cross-section current
-            Z3t = self.integrate2d(X3, Y3, Z3) * d1 * 1e6  # [mkA]
-            self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
-            self.clearPicture()
-            axes.contour(X3, Y3, Z3)
-            axes.contour(X2, Y2, Z2)
-            axes.plot(X2[0, :], Shift-Y1avg, 'x-', color='red')
-            axes.grid(True)
-            axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
-            self.mplWidget.canvas.draw()
-            return
-
-        # debug draw 17
-        if int(self.comboBox.currentIndex()) == 17:
-            self.clearPicture()
-            indexes = self.listWidget.selectedIndexes()
-            for j in indexes:
-                k = j.row()
-                self.plot(Y3[:, k - 1] * 1e3, Z3[:, k - 1] * 1e6, '.-', label='sh' + str(k))
-                self.plot(Y1[:, k - 1] * 1e3, Z1[:, k - 1] * 1e6, '.-', label='or' + str(k))
-            axes.set_title('Shifted elementary jets')
-            axes.set_xlabel('X\', milliRadians')
-            axes.set_ylabel('Current, mkA')
-            self.mplWidget.canvas.draw()
-            return
+        # Shift = np.zeros(nx, dtype=np.float64)
+        # for i in range(nx):
+        #     z = Z2[:, i]
+        #     imax = np.argmax(z)
+        #     so = Y2[imax, i] + Y1avg
+        #     io = imax
+        #     zo = z
+        #     diap = np.linspace(Y2[imax-5, i], Y2[imax+5, i], 100) + Y1avg
+        #     z = F1[i](diap)
+        #     imax = np.argmax(z)
+        #     sn = diap[imax]
+        #     #print('shift old', so, zo[io], 'new', sn, z[imax])
+        #     Shift[i] = diap[imax]
+        #     #Shift[i] = Y2[imax, i] + Y1avg
+        #     Z3[:, i] = F1[i](Y2[:, i] + Shift[i])
+        # # remove negative data
+        # Z3[Z3 < 0.0] = 0.0
+        # # debug draw 11
+        # if int(self.comboBox.currentIndex()) == 11:
+        #     # cross-section current
+        #     Z3t = self.integrate2d(X3, Y3, Z3) * d1 * 1e6  # [mkA]
+        #     self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
+        #     self.clearPicture()
+        #     axes.contour(X3, Y3, Z3)
+        #     axes.contour(X2, Y2, Z2)
+        #     axes.plot(X2[0, :], Shift-Y1avg, 'x-', color='red')
+        #     axes.grid(True)
+        #     axes.set_title('Z3 [N,nx-1] Regular divergence reduced')
+        #     self.mplWidget.canvas.draw()
+        #     return
+        #
+        # # debug draw 17
+        # if int(self.comboBox.currentIndex()) == 17:
+        #     self.clearPicture()
+        #     indexes = self.listWidget.selectedIndexes()
+        #     for j in indexes:
+        #         k = j.row()
+        #         self.plot(Y3[:, k - 1] * 1e3, Z3[:, k - 1] * 1e6, '.-', label='sh' + str(k))
+        #         self.plot(Y1[:, k - 1] * 1e3, Z1[:, k - 1] * 1e6, '.-', label='or' + str(k))
+        #     axes.set_title('Shifted elementary jets')
+        #     axes.set_xlabel('X\', milliRadians')
+        #     axes.set_ylabel('Current, mkA')
+        #     self.mplWidget.canvas.draw()
+        #     return
 
         # X3,Y3,Z3 -> X4,Y4,Z4 integrate emittance from cross-section to circular beam
         X4 = X3
         Y4 = Y3
         Z4 = Z3.copy()
-        x = X3[0, :]
+        x = X3[0, :].flatten()
         y = x.copy() * 0.0
-        for i in range(nx - 1):
+        for i in range(len(x) - 1):
             xi = x[i]
             if xi >= 0.0:
                 mask = x > xi
@@ -1543,7 +1562,7 @@ class DesignerMainWindow(QMainWindow):
         for i in range(N - 1):
             x = X4[i, :]
             z = Z4[i, :]
-            index = np.unique(x, return_index=True)[1]
+            v, index = np.unique(x, return_index=True)[1]
             f = interp1d(x[index], z[index], kind='cubic', bounds_error=False, fill_value=0.0)
             Z5[i, :] = f(X5[i, :])
         # remove negative currents
