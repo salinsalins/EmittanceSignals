@@ -1408,7 +1408,7 @@ class DesignerMainWindow(QMainWindow):
             #     i += 1
             # axes.plot(yg, gy, label='g-1/2')
             # axes.legend(loc='best')
-            axes.set_title('Z2 NxN resumpled')
+            axes.set_title('Z2 NxN resampled')
             axes.grid(True)
             self.mplWidget.canvas.draw()
             return
@@ -1460,9 +1460,10 @@ class DesignerMainWindow(QMainWindow):
             xi = x[i]
             if xi >= 0:
                 mask = x >= xi
+                y = np.sqrt(x[mask] ** 2 - xi ** 2)
             else:
                 mask = x <= xi
-            y = np.sqrt(x[mask] ** 2 - xi ** 2)
+                y = -np.sqrt(x[mask] ** 2 - xi ** 2)
             for k in range(ny_):
                 z_ = Z2[k, :]
                 z = Z2[k, mask]
@@ -1470,7 +1471,7 @@ class DesignerMainWindow(QMainWindow):
                 v0 = Z2[k, i]
                 Z4[k, i] = v
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
-        Z4[Z4 < 0.0] = 0.0
+        #Z4[Z4 < 0.0] = 0.0
         Z4t = self.integrate2d(X4, Y4, Z4) * 1000.0  # [mA]
         self.logger.info('Total Z4 (beam current) = %f mA' % Z4t)
         # plot
@@ -1482,6 +1483,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Z4 NxN total beam')
             self.mplWidget.canvas.draw()
             plt.matshow(Z4)
+            plt.show()
             return
 
         # X4,Y4,Z4 -> X5,Y5,Z5 resample to NxN array
@@ -1500,7 +1502,7 @@ class DesignerMainWindow(QMainWindow):
         # X and Y
         for i in range(ny):
             X5[i, :] = xs
-            Y5[:, i] = ys - Y1avg
+            Y5[:, i] = ys - Y0avg
         for i in range(ny - 1):
             x = X4[i, :]
             z = Z4[i, :]
