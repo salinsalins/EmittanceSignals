@@ -4,7 +4,7 @@ mathtext.fontset: cm
 mathtext.rm : serif
 #ytick.right: True
 #ytick.direction: in
-font.size:    16.0
+font.size:    20.0
 axes.linewidth:     1.8     # edge linewidth
 lines.linewidth 2.0
 #contour.linewidth:          2.0    # {float, None} Size of the contour
