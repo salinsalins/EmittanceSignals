@@ -780,7 +780,7 @@ class DesignerMainWindow(QMainWindow):
         l2 = self.read_parameter(0, "l2", 195.0, float)
         x0 = self.read_parameter(row, "x0", 0.0, float)
         # x' in Radians
-        xsub = (ndh - s*u)/l2 + x0/l1
+        xsub = (ndh - s*u)/l2
         return xsub, y, index
 
     def smoothX(self, x, y):
