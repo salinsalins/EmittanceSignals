@@ -627,7 +627,7 @@
             <enum>QFrame::NoFrame</enum>
            </property>
            <property name="text">
-            <string>X axis channel</string>
+            <string>Scan Voltage Channll</string>
            </property>
           </widget>
          </item>

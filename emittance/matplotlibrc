@@ -1,0 +1,12 @@
+# from https://matplotlib.org/tutorials/introductory/customizing.html#customizing-with-matplotlibrc-files
+# see also https://github.com/matplotlib/matplotlib/blob/v3.1.3/matplotlibrc.template
+mathtext.fontset: cm
+mathtext.rm : serif
+#ytick.right: True
+#ytick.direction: in
+font.size:    20.0
+axes.linewidth:     1.8     # edge linewidth
+lines.linewidth: 2.0
+#contour.linewidth:          2.0    # {float, None} Size of the contour
+                                     # linewidths. If set to None,
+                                     # it falls back to `line.linewidth`.
