@@ -1464,19 +1464,25 @@ class DesignerMainWindow(QMainWindow):
         Y4 = Y2
         Z4 = Z2.copy()
         x = X4[0, :].flatten()
-        y = x.copy() * 0.0
-        for i in range(len(x) - 1):
+        x_min = x.min()
+        x_d = x[1] - x[0]
+        y = np.zeros_like(x)
+        nx_ = x.size
+        ny_ = Z4[:, 0].size
+        for i in range(nx_):
             xi = x[i]
-            if xi >= 0.0:
-                mask = x > xi
-                y[mask] = np.sqrt(x[mask] ** 2 - xi ** 2)
-            if xi < 0.0:
+            if xi >= 0:
+                mask = x >= xi
+            else:
                 mask = x < xi
-                y[mask] = -np.sqrt(x[mask] ** 2 - xi ** 2)
-            for k in range(N):
-                z = Z2[k, :].copy()
-                Z4[k, i] = 2.0 * trapz(z[mask], y[mask])
-        Z4[Z4 < 0.0] = 0.0
+            y = np.sqrt(x[mask] ** 2 - xi ** 2)
+            for k in range(ny_):
+                z_ = Z2[k, :]
+                z = Z2[k, mask]
+                v = 2.0 * trapz(z, y)
+                v0 = Z2[k, i]
+                Z4[k, i] = v
+        #Z4[Z4 < 0.0] = 0.0
         if int(self.comboBox.currentIndex()) == 13:
             # total beam current
             Z4t = self.integrate2d(X4, Y4, Z4) * 1000.0  # [mA]
@@ -1508,7 +1514,7 @@ class DesignerMainWindow(QMainWindow):
         for i in range(N - 1):
             x = X4[i, :]
             z = Z4[i, :]
-            v, index = np.unique(x, return_index=True)[1]
+            index = np.unique(x, return_index=True)[1]
             f = interp1d(x[index], z[index], kind='cubic', bounds_error=False, fill_value=0.0)
             Z5[i, :] = f(X5[i, :])
         # remove negative currents
