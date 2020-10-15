@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>818</width>
+    <width>820</width>
     <height>602</height>
    </rect>
   </property>
@@ -525,27 +525,27 @@
            </item>
            <item>
             <property name="text">
-             <string>10 Z2 [N,nx-1] Initial data average shifted</string>
+             <string>10 Z0 Initial data</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>11 Z3 [N,nx-1]  Regular divergence reduced</string>
+             <string>11 Z1 Average shifted</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>12 Scan voltage range</string>
+             <string>12 Z2 Resampled NxN</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>13 Z4 [N,nx] total beam</string>
+             <string>13 Z3 NxN average shifted</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>14 Zero line debug</string>
+             <string>14 -- (Zero line debug)</string>
             </property>
            </item>
            <item>
@@ -708,7 +708,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>818</width>
+     <width>820</width>
      <height>23</height>
     </rect>
    </property>

@@ -1133,46 +1133,47 @@ class DesignerMainWindow(QMainWindow):
                 fontsize=11)
             self.mplWidget.canvas.draw()
 
+    def map(self, f, x, y):
+        result = np.zeros_like(x)
+        if x.size > 1 and y.size > 1:
+            if x.shape != y.shape:
+                raise IndexError('X and Y shape mismatch')
+        elif x.size == 1:
+            x = np.full_like(y, x[0])
+            result = np.zeros_like(y)
+        elif y.size == 1:
+            y = np.full_like(x, y[0])
+        for i in range(result.size):
+            result.flat[i] = f(x.flat[i], y.flat[i])
+        return result
+
     def interpolate(self, x, s, F):
-        # x1, index = np.unique(x, return_index=True)
-        # F1 = F[index]
-        x1 = x
-        F1 = F
+        # # linear regression into shift
+        # shift_k = ((x*s).mean() - x.mean()*s.mean()) / ((x*x).mean() - x.mean()**2)
+        # shift_b = s.mean() - shift_k * x.mean()
+        x1 = x.copy()
+        # s1 = s.copy()
         nx = len(x1)
         x_min = x1.min()
         x_max = x1.max()
-        # y_max = x1.copy()
-        # for i in range(nx):
-        #     y_max[i] = max(F[i])
+        deltax = x1[1:] - x[:-1]
+        deltas = s[1:] - s[:-1]
         def f(x, y):
-            # result = np.zeros_like(x)
-            # if x.size > 1 and y.size > 1:
-            #     if x.shape != y.shape:
-            #         raise IndexError('X and Y shape mismatch')
-            # elif x.size == 1:
-            #     x = np.full_like(y, x)
-            #     result = np.zeros_like(y)
-            # elif y.size == 1:
-            #     y = np.full_like(x, y)
-            # mask = x > x_max or x < x_min
-            # result[mask] = 0.0
-            # mask = ~mask
             if x > x_max or x < x_min:
                 return 0.0
             for i in range(nx):
                 if x1[i] > x:
                     break
             xi = i
+            i1 = i - 1
             if xi == 0:
-                return F[xi](y)
-            y1 = s[xi-1]
-            y2 = s[xi]
-            dx = x1[xi] - x1[xi-1]
-            d1 = x - x1[xi - 1]
+                return F[0](y)
+            dx = deltax[i1]
+            d1 = x - x1[i1]
             d2 = x1[xi] - x
-            dy = y2 - y1
+            dy = deltas[i1]
             d = dy / dx
-            f1 = F[xi-1](y - d * d1)
+            f1 = F[i1](y - d * d1)
             f2 = F[xi](y + d * d2)
             return (f1 * d2 + f2 * d1) / dx
         return f
@@ -1320,9 +1321,9 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(X0, Y0, Z0)
             axes.grid(True)
-            axes.set_title('Z0 initial data')
-            plt.matshow(Z0)
+            axes.set_title('Z0 initial data x0 sorted')
             self.mplWidget.canvas.draw()
+            plt.matshow(Z0)
             return
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
@@ -1349,7 +1350,7 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(X1, Y1, Z1)
             axes.grid(True)
-            axes.set_title('Z1 = data average shifted')
+            axes.set_title('Z1 Average shifted')
             self.mplWidget.canvas.draw()
             plt.matshow(Z1)
             return
@@ -1363,16 +1364,15 @@ class DesignerMainWindow(QMainWindow):
         shift_b = y.mean() - shift_k * x.mean()
         self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
 
-        # interpolate for NxN grid
+        # X0,Y0,Z0 -> X2,Y2,Z2 interpolate for NxN grid
         #points = np.r_['1,2,0', X1.flat, Y1.flat]
         grid_x, grid_y = self.grid(X0, Y0, ny)
         #grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='linear', fill_value=0.0)
         g = self.interpolate(X0[0, :], shift_y, F0)
         grid_z = grid_x.copy()
-        i = 0
-        for x in grid_x.flat:
-            grid_z.flat[i] = g(x, grid_y.flat[i])
-            i += 1
+        for i in range(grid_x.shape[0]):
+            grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
+        # grid_z = self.map(g, grid_x, grid_y)
         if int(self.comboBox.currentIndex()) == 12:
             # plot
             self.clearPicture()
@@ -1412,6 +1412,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Z2 NxN resampled')
             axes.grid(True)
             self.mplWidget.canvas.draw()
+            plt.matshow(grid_z)
             return
         X2 = grid_x
         Y2 = grid_y
@@ -1428,11 +1429,11 @@ class DesignerMainWindow(QMainWindow):
         if self.read_parameter(0, 'center', 'avg') == 'avg':
             Z2t = self.integrate2d(X2, Y2, Z2)
             X2avg = self.integrate2d(X2, Y2, X2 * Z2) / Z2t
-            Y0avg = self.integrate2d(X2, Y2, Y2 * Z2) / Z2t
+            Y2avg = self.integrate2d(X2, Y2, Y2 * Z2) / Z2t
         self.logger.info('Average X2 %s, Y2 %s', X2avg, Y2avg)
         Z3 = Z2.copy()
-        X3 = X2.copy() - X0avg
-        Y3 = Y2.copy() - Y0avg
+        X3 = X2.copy() - X2avg
+        Y3 = Y2.copy() - Y2avg
         self.logger.info('Z3 min = %s max = %s', Z3.min(), Z3.max())
         Z3t = self.integrate2d(X3, Y3, Z3) * d2 * 1e6  # [mkA]
         self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
@@ -1442,7 +1443,7 @@ class DesignerMainWindow(QMainWindow):
             self.clearPicture()
             axes.contour(X3, Y3, Z3)
             axes.grid(True)
-            axes.set_title('Z3 NxN data average shifted')
+            axes.set_title('Z3 NxN Average shifted')
             self.mplWidget.canvas.draw()
             plt.matshow(Z3)
             return
@@ -1451,30 +1452,32 @@ class DesignerMainWindow(QMainWindow):
         X4 = X3
         Y4 = Y3
         Z4 = Z3.copy()
-        x = X3[0, :].flatten()
+        x = X4[0, :].flatten()
         x_min = x.min()
         x_d = x[1] - x[0]
         y = np.zeros_like(x)
         nx_ = x.size
         ny_ = Z4[:, 0].size
         for i in range(nx_):
+            print(100.0*i/(nx_ - 1), '%')
             xi = x[i]
+            dx = x ** 2 - xi ** 2
+            dxgz = dx >= 0.0
             if xi >= 0:
-                mask = x >= xi
-                y = np.sqrt(x[mask] ** 2 - xi ** 2)
+                mask = (x >= xi) * dxgz
+                y = np.sqrt(dx[mask])
             else:
-                mask = x <= xi
-                y = -np.sqrt(x[mask] ** 2 - xi ** 2)
+                mask = (x <= xi) * dxgz
+                y = -np.sqrt(dx[mask])
             for k in range(ny_):
-                z_ = Z2[k, :]
-                z = Z2[k, mask]
+                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - x[mask])
+                z = self.map(g, x[mask] + X2avg, xsub)
                 v = 2.0 * trapz(z, y)
-                v0 = Z2[k, i]
                 Z4[k, i] = v
-        self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
-        #Z4[Z4 < 0.0] = 0.0
+        self.logger.info('Z4 min = %s max = %s', Z4.min(), Z4.max())
+        Z4[Z4 < 0.0] = 0.0
         Z4t = self.integrate2d(X4, Y4, Z4) * 1000.0  # [mA]
-        self.logger.info('Total Z4 (beam current) = %f mA' % Z4t)
+        self.logger.info('Total Z4 (beam current) = %f mA', Z4t)
         # plot
         if int(self.comboBox.currentIndex()) == 14:
             # total beam current
@@ -1487,85 +1490,11 @@ class DesignerMainWindow(QMainWindow):
             plt.show()
             return
 
-        # X4,Y4,Z4 -> X5,Y5,Z5 resample to NxN array
-        X5 = np.zeros((ny, ny), dtype=np.float64)
-        Y5 = np.zeros((ny, ny), dtype=np.float64)
-        Z5 = np.zeros((ny, ny), dtype=np.float64)
-        xmin = x0.min()
-        xmax = x0.max()
-        if abs(xmin) > abs(xmax):
-            xmax = abs(xmin)
-        else:
-            xmax = abs(xmax)
-        xmax *= 1.05
-        xmin = -xmax
-        xs = np.linspace(xmin, xmax, ny)
-        # X and Y
-        for i in range(ny):
-            X5[i, :] = xs
-            Y5[:, i] = ys - Y0avg
-        for i in range(ny - 1):
-            x = X4[i, :]
-            z = Z4[i, :]
-            index = np.unique(x, return_index=True)[1]
-            f = interp1d(x[index], z[index], kind='cubic', bounds_error=False, fill_value=0.0)
-            Z5[i, :] = f(X5[i, :])
-        # remove negative currents
-        Z5[Z5 < 0.0] = 0.0
-        # debug plot 18
-        if int(self.comboBox.currentIndex()) == 18:
-            Z5t = self.integrate2d(X5, Y5, Z5) * 1000.0  # [mA]
-            self.logger.info('Total Z5 (beam current) = %f mA' % Z5t)
-            self.clearPicture()
-            axes.contour(X5, Y5, Z5)
-            axes.grid(True)
-            axes.set_title('Z5 [N,N] no divergence')
-            self.mplWidget.canvas.draw()
-            return
-
-        # X5,Y5,Z5 -> X6,Y6,Z6 return shift of jets back
-        X6 = X5
-        Y6 = Y5
-        Z6 = np.zeros((ny, ny), dtype=np.float64)
-        g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
-        #g = interp1d(X3[0, :], Shift, kind='linear', bounds_error=False, fill_value=0.0)
-        for i in range(ny):
-            y = Y5[:, i]
-            z = Z5[:, i]
-            #f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-            f = interp1d(y, z, kind='cubic', bounds_error=False, fill_value=0.0)
-            s = g(X5[0, i]) - Y1avg
-            Z6[:, i] = f(Y5[:, i] - s)
-        Z6[Z6 < 0.0] = 0.0
-        # debug plot 16
-        if int(self.comboBox.currentIndex()) == 16:
-            Z6t = self.integrate2d(X6, Y6, Z6) * 1000.0  # [mA]
-            self.logger.info('Total Z6 (beam current) = %f mA' % Z6t)
-
-            # #experimental resample function
-            # ff = self.interpolatePlot(X1[0,:],Y1[:,0],F1)
-            # for i in range(N):
-            #    self.logger.info(i)
-            #    for k in range(N):
-            #        pass
-            #        Z6[i,k] = ff(X6[i,k], Y6[i,k])
-            # Z6[Z6 < 0.0] = 0.0
-            # Z6t = self.integrate2d(X6,Y6,Z6) * 1000.0 # [mA]
-            # self.logger.info('Total Z6 (beam current) = %f mA'%Z6t)
-
-            self.clearPicture()
-            axes.contour(X6, Y6, Z6)
-            axes.plot(X3[0, :], Shift - Y1avg, 'x-', color='red')
-            axes.grid(True)
-            axes.set_title('Z6 [N,N] divergence back')
-            self.mplWidget.canvas.draw()
-            return
-
         # calculate emittance values
         # X6,Y6,Z6 -> X,Y,Z final array X and Y centered to plot and emittance calculation
-        X = X6
-        Y = Y6
-        Z = Z6  # [A/mm/Radian]
+        X = X4
+        Y = Y4
+        Z = Z4  # [A/mm/Radian]
         Zt = self.integrate2d(X, Y, Z)  # [A]
         # calculate average X and X'
         Xavg = self.integrate2d(X, Y, X * Z) / Zt
@@ -1580,22 +1509,24 @@ class DesignerMainWindow(QMainWindow):
         # RMS Emittance
         self.RMS = np.sqrt(XXavg * YYavg - XYavg * XYavg) * 1000.0  # [Pi*mm*mrad]
         self.logger.info('Normalized RMS Emittance of total beam    %f Pi*mm*mrad' % (self.RMS * beta))
+
         # cross section RMS emittance
-        Z2 = Z2 * d1  # [A/mm/Radian]
-        Z2t = self.integrate2d(X2, Y2, Z2)  # [A]
-        X2avg = self.integrate2d(X2, Y2, X2 * Z2) / Z2t
-        Y2avg = self.integrate2d(X2, Y2, Y2 * Z2) / Z2t
+        Z3 = Z3 * d1  # [A/mm/Radian]
+        Z3t = self.integrate2d(X3, Y3, Z3)  # [A]
+        X3avg = self.integrate2d(X3, Y3, X3 * Z3) / Z3t
+        Y3avg = self.integrate2d(X3, Y3, Y3 * Z3) / Z3t
         # subtract average values 
-        X2 = X2 - X2avg
-        Y2 = Y2 - Y2avg
+        X3 = X3 - X3avg
+        Y3 = Y3 - Y3avg
         # calculate moments 
-        XY2avg = self.integrate2d(X2, Y2, X2 * Y2 * Z2) / Z2t
-        XX2avg = self.integrate2d(X2, Y2, X2 * X2 * Z2) / Z2t
-        YY2avg = self.integrate2d(X2, Y2, Y2 * Y2 * Z2) / Z2t
+        XY3avg = self.integrate2d(X3, Y3, X3 * Y3 * Z3) / Z3t
+        XX3avg = self.integrate2d(X3, Y3, X3 * X3 * Z3) / Z3t
+        YY3avg = self.integrate2d(X3, Y3, Y3 * Y3 * Z3) / Z3t
         # cross section RMS Emittance
-        self.RMScs = np.sqrt(XX2avg * YY2avg - XY2avg * XY2avg) * 1000.0  # [Pi*mm*mrad]
+        self.RMScs = np.sqrt(XX3avg * YY3avg - XY3avg * XY3avg) * 1000.0  # [Pi*mm*mrad]
         self.logger.info('Normalized RMS Emittance of cross-section %f Pi*mm*mrad' % (self.RMScs * beta))
-        # calculate emittance fraction for density levels 
+
+        # calculate emittance fraction for density levels
         # number of levels
         nz = 100
         # level
