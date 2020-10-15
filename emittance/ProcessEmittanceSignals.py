@@ -781,7 +781,7 @@ class DesignerMainWindow(QMainWindow):
         l2 = self.read_parameter(0, "l2", 195.0, float)
         x0 = self.read_parameter(row, "x0", 0.0, float)
         # x' in Radians
-        xsub = (ndh - s*u)/l2 + x0/l1
+        xsub = (ndh - s*u)/l2
         return xsub, y, index
 
     def smoothX(self, x, y):
@@ -1361,6 +1361,7 @@ class DesignerMainWindow(QMainWindow):
         # linear regression into shift
         shift_k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
         shift_b = y.mean() - shift_k * x.mean()
+        self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
 
         # interpolate for NxN grid
         #points = np.r_['1,2,0', X1.flat, Y1.flat]
