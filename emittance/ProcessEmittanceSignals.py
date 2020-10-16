@@ -1469,7 +1469,11 @@ class DesignerMainWindow(QMainWindow):
         Z4 = Z3.copy()
         x = X4[0, :].flatten()
         xi = np.arange(x.size)
+        x_delta = x[1] - x[0]
+        y_delta = Y4[1, 0] - Y4[0, 0]
         x_min = x.min()
+        y_min = Y4[0, 0]
+        y_max = Y4[-1, -1]
         x_d = x[1] - x[0]
         y = np.zeros_like(x)
         nx_ = x.size
@@ -1487,10 +1491,20 @@ class DesignerMainWindow(QMainWindow):
                 y = -np.sqrt(dx2[mask])
             xmask = x[mask]
             for k in range(ny_):
-                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
-                z = self.map(g, xmask + X2avg, xsub)
+                # xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
+                # mask = (xsub >= y_min) * (xsub <= ymax)
+                # xn = ((xmask-x_min)/x_delta).astype(int)[mask]
+                # yn = ((xsub-y_min)/y_delta).astype(int)[mask]
+                # #z = self.map(g, xmask + X2avg, xsub)
+                # z = Z2[xn, yn].flatten()
+                #
+                # v = 2.0 * trapz(z, y)
+                # Z4[k, i] = v
+                xsub = Y4[:, 0] + Y2avg - shift_k * (xi - xmask)
+                z = g(xmask + X2avg, xsub)
                 v = 2.0 * trapz(z, y)
-                Z4[k, i] = v
+                Z4[:, i] = v
+
         self.logger.info('Elapsed %s seconds', time.time() - t0)
         self.logger.info('Z4 min = %s max = %s', Z4.min(), Z4.max())
         Z4[Z4 < 0.0] = 0.0
