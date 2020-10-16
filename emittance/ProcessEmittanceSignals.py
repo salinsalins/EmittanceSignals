@@ -10,6 +10,7 @@ from __future__ import print_function
 import os.path
 import shelve
 import sys
+import time
 import json
 
 from emittance.findRegions import findRegions as findRegions
@@ -1315,7 +1316,7 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
-
+        # plot Z0 - initial signals
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
             self.clearPicture()
@@ -1344,7 +1345,7 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z1 min = %s max = %s', Z1.min(), Z1.max())
         Z1t = self.integrate2d(X1, Y1, Z1) * d2 * 1e6  # [mkA]
         self.logger.info('Total Z1 (cross-section current) = %f mkA' % Z1t)
-        # debug draw 11
+        # plot Z1 = Z0 with shifted average X0 and Y0
         if int(self.comboBox.currentIndex()) == 11:
             # cross-section current
             self.clearPicture()
@@ -1373,51 +1374,19 @@ class DesignerMainWindow(QMainWindow):
         for i in range(grid_x.shape[0]):
             grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
         # grid_z = self.map(g, grid_x, grid_y)
-        if int(self.comboBox.currentIndex()) == 12:
-            # plot
-            self.clearPicture()
-            # initial
-            #axes.contour(X0, Y0, Z0)
-            #axes.plot(X1, Y1, '.', color='red', linewidth=1.0, markersize=1.0)
-            #axes.plot(X1[0, :], shift, 'x-', color='red')
-            #axes.plot(X1[0, :], k*X1[0, :]+b, '-', color='blue')
-            # shifted to EA
-            #axes.contour(x, y, z)
-            #axes.plot(x, y, '.', color='blue', linewidth=1.0, markersize=1.0)
-            # shifted and interpolated
-            #axes.contour(grid_x, grid_y, grid_z)
-            #axes.plot(grid_x, grid_y, '.', color='black', linewidth=1.0, markersize=1.0)
-            #axes.contour(x1, y1, z1)
-            #axes.plot(x1, y1, '.', color='red', linewidth=1.0, markersize=1.0)
-            axes.contour(grid_x, grid_y, grid_z)
-            plt.matshow(grid_z)
-            #axes.contour(grid_x1, grid_y1, gz)
-            #axes.plot(grid_x1, grid_y1, '.', color='black', linewidth=1.0, markersize=1.0)
-            # n = 27
-            # gy = yg.copy()
-            # i = 0
-            # for v in yg:
-            #     gy[i] = g(X1[0, n], v)
-            #     i += 1
-            # axes.plot(yg, gy, label='g')
-            # axes.plot(yg, F1[n](yg), label='f0')
-            # axes.plot(yg, F1[n-1](yg), label='f-')
-            # axes.plot(yg, F1[n+1](yg), label='f+')
-            # i = 0
-            # for v in yg:
-            #     gy[i] = g((X1[0, n]+X1[0, n-1])/2, v)
-            #     i += 1
-            # axes.plot(yg, gy, label='g-1/2')
-            # axes.legend(loc='best')
-            axes.set_title('Z2 NxN resampled')
-            axes.grid(True)
-            self.mplWidget.canvas.draw()
-            plt.matshow(grid_z)
-            return
         X2 = grid_x
         Y2 = grid_y
         Z2 = grid_z
         self.logger.info('Z2 min = %s max = %s', Z2.min(), Z2.max())
+        # plot Z2 -> Z1 interpolated for NxN grid
+        if int(self.comboBox.currentIndex()) == 12:
+            self.clearPicture()
+            axes.contour(Z2, Z2, Z2)
+            # plt.matshow(Z2)
+            axes.set_title('Z2 NxN resampled')
+            axes.grid(True)
+            self.mplWidget.canvas.draw()
+            return
 
         # X2,Y2,Z2 -> X3,Y3,Z3 remove average X2 and Y2
         X2avg = 0.0
@@ -1437,43 +1406,92 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z3 min = %s max = %s', Z3.min(), Z3.max())
         Z3t = self.integrate2d(X3, Y3, Z3) * d2 * 1e6  # [mkA]
         self.logger.info('Total Z3 (cross-section current) = %f mkA' % Z3t)
-        # debug draw 13
+        # plot Z3 remove average X2 and Y2
         if int(self.comboBox.currentIndex()) == 13:
-            # cross-section current
             self.clearPicture()
             axes.contour(X3, Y3, Z3)
             axes.grid(True)
             axes.set_title('Z3 NxN Average shifted')
             self.mplWidget.canvas.draw()
-            plt.matshow(Z3)
+            # plt.matshow(Z3)
+            return
+
+        # Emittance contour plot of beam cross-section
+        # cross section RMS emittance calculations
+        # X3,Y3,Z3 -> X5,Y5,Z5
+        X5 = X3
+        Y5 = Y3
+        Z5 = Z3 * d1  # [A/mm/Radian]
+        # self.logger.info('Removing average')
+        Z5t = self.integrate2d(X5, Y5, Z5)  # [A]
+        X5avg = self.integrate2d(X5, Y5, X5 * Z5) / Z5t
+        Y5avg = self.integrate2d(X5, Y5, Y5 * Z5) / Z5t
+        # subtract average values
+        X5 = X5 - X5avg
+        Y5 = Y5 - Y5avg
+        # calculate moments
+        # self.logger.info('Calculating RMS emittance')
+        XY5avg = self.integrate2d(X5, Y5, X5 * Y5 * Z5) / Z5t
+        XX5avg = self.integrate2d(X5, Y5, X5 * X5 * Z5) / Z5t
+        YY5avg = self.integrate2d(X5, Y5, Y5 * Y5 * Z5) / Z5t
+        # cross section RMS Emittance
+        self.RMScs = np.sqrt(XX5avg * YY5avg - XY5avg * XY5avg) * 1000.0  # [Pi*mm*mrad]
+        self.logger.info('Normalized RMS Emittance of cross-section %f Pi*mm*mrad' % (self.RMScs * beta))
+        # save data to text file
+        # self.logger.info('Saving data')
+        folder = self.folderName
+        fn = os.path.join(str(folder), _progName + '_X_cs.gz')
+        np.savetxt(fn, X5, delimiter='; ')
+        fn = os.path.join(str(folder), _progName + '_Y_cs.gz')
+        np.savetxt(fn, Y5, delimiter='; ')
+        fn = os.path.join(str(folder), _progName + '_Z_cs.gz')
+        np.savetxt(fn, Z5, delimiter='; ')
+        # plot
+        if int(self.comboBox.currentIndex()) == 8:
+            self.clearPicture()
+            axes.contour(X5, Y5, Z5, linewidths=1.5)
+            axes.grid(True)
+            axes.set_title('Emittance contour plot of beam cross-section')
+            axes.set_xlabel('X, mm')
+            axes.set_ylabel('X\', milliRadians')
+            axes.annotate('Cross-section I=%5.1f mkA' % (self.Ics * 1e6) + ';\nNorm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
+                    self.RMScs * beta),
+                          xy=(.3, .2), xycoords='figure fraction',
+                          horizontalalignment='left', verticalalignment='top',
+                          fontsize=18)
+            self.mplWidget.canvas.draw()
             return
 
         # X3,Y3,Z3 -> X4,Y4,Z4 integrate emittance from cross-section to circular beam
+        t0 = time.time()
         X4 = X3
         Y4 = Y3
         Z4 = Z3.copy()
         x = X4[0, :].flatten()
+        xi = np.arange(x.size)
         x_min = x.min()
         x_d = x[1] - x[0]
         y = np.zeros_like(x)
         nx_ = x.size
         ny_ = Z4[:, 0].size
         for i in range(nx_):
-            print(100.0*i/(nx_ - 1), '%')
+            #print(100.0*i/(nx_ - 1), '%')
             xi = x[i]
-            dx = x ** 2 - xi ** 2
-            dxgz = dx >= 0.0
+            dx2 = x ** 2 - xi ** 2
+            dxgz = dx2 >= 0.0
             if xi >= 0:
                 mask = (x >= xi) * dxgz
-                y = np.sqrt(dx[mask])
+                y = np.sqrt(dx2[mask])
             else:
                 mask = (x <= xi) * dxgz
-                y = -np.sqrt(dx[mask])
+                y = -np.sqrt(dx2[mask])
+            xmask = x[mask]
             for k in range(ny_):
-                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - x[mask])
-                z = self.map(g, x[mask] + X2avg, xsub)
+                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
+                z = self.map(g, xmask + X2avg, xsub)
                 v = 2.0 * trapz(z, y)
                 Z4[k, i] = v
+        self.logger.info('Elapsed %s seconds', time.time() - t0)
         self.logger.info('Z4 min = %s max = %s', Z4.min(), Z4.max())
         Z4[Z4 < 0.0] = 0.0
         Z4t = self.integrate2d(X4, Y4, Z4) * 1000.0  # [mA]
@@ -1491,7 +1509,7 @@ class DesignerMainWindow(QMainWindow):
             return
 
         # calculate emittance values
-        # X6,Y6,Z6 -> X,Y,Z final array X and Y centered to plot and emittance calculation
+        # X4,Y4,Z4 -> X,Y,Z final array X and Y centered to plot and emittance calculation
         X = X4
         Y = Y4
         Z = Z4  # [A/mm/Radian]
@@ -1509,22 +1527,6 @@ class DesignerMainWindow(QMainWindow):
         # RMS Emittance
         self.RMS = np.sqrt(XXavg * YYavg - XYavg * XYavg) * 1000.0  # [Pi*mm*mrad]
         self.logger.info('Normalized RMS Emittance of total beam    %f Pi*mm*mrad' % (self.RMS * beta))
-
-        # cross section RMS emittance
-        Z3 = Z3 * d1  # [A/mm/Radian]
-        Z3t = self.integrate2d(X3, Y3, Z3)  # [A]
-        X3avg = self.integrate2d(X3, Y3, X3 * Z3) / Z3t
-        Y3avg = self.integrate2d(X3, Y3, Y3 * Z3) / Z3t
-        # subtract average values 
-        X3 = X3 - X3avg
-        Y3 = Y3 - Y3avg
-        # calculate moments 
-        XY3avg = self.integrate2d(X3, Y3, X3 * Y3 * Z3) / Z3t
-        XX3avg = self.integrate2d(X3, Y3, X3 * X3 * Z3) / Z3t
-        YY3avg = self.integrate2d(X3, Y3, Y3 * Y3 * Z3) / Z3t
-        # cross section RMS Emittance
-        self.RMScs = np.sqrt(XX3avg * YY3avg - XY3avg * XY3avg) * 1000.0  # [Pi*mm*mrad]
-        self.logger.info('Normalized RMS Emittance of cross-section %f Pi*mm*mrad' % (self.RMScs * beta))
 
         # calculate emittance fraction for density levels
         # number of levels
@@ -1571,30 +1573,6 @@ class DesignerMainWindow(QMainWindow):
             self.logger.info('%2.0f %%       %5.3f Pi*mm*milliRadians  %5.3f Pi*mm*milliRadians' % (
                 fractions[i] * 100.0, emit[i], rms[i]))
         self.logger.info('%2.0f %%                                %5.3f Pi*mm*milliRadians' % (100.0, self.RMS * beta))
-        # return X and Y to symmetrical range
-        X = X + Xavg
-        Y = Y + Yavg
-        # subtract average values 
-        if self.read_parameter(0, 'center', 'avg') == 'max':
-            n = np.argmax(Z)
-            Xavg = X.flat[n]
-            Yavg = Y.flat[n]
-        if self.read_parameter(0, 'center', 'avg') == 'avg':
-            Zt = self.integrate2d(X, Y, Z)  # [A]
-            Xavg = self.integrate2d(X, Y, X * Z) / Zt
-            Yavg = self.integrate2d(X, Y, Y * Z) / Zt
-        # recalculate Z
-        for i in range(ny):
-            y = Y[:, i]
-            z = Z[:, i]
-            f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-            Z[:, i] = f(Y[:, i] + Yavg)
-        for i in range(ny):
-            x = X[i, :]
-            z = Z[i, :]
-            f = interp1d(x, z, kind='linear', bounds_error=False, fill_value=0.0)
-            Z[i, :] = f(X[i, :] + Xavg)
-        Z[Z < 0.0] = 0.0
 
         # save data to text file
         folder = self.folderName
@@ -1613,9 +1591,9 @@ class DesignerMainWindow(QMainWindow):
             #axes.set_title('Emittance contour plot')
             axes.set_title('Диаграмма эмиттанса')
             # axes.set_ylim([ymin,ymax])
-            #axes.set_xlabel('X, мм')
+            # axes.set_xlabel('X, мм')
             axes.set_xlabel('X, mm')
-            #axes.set_ylabel('X\', milliradians')
+            # axes.set_ylabel('X\', milliradians')
             axes.set_ylabel('X\', миллирадиан')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
                     self.RMS * beta),
@@ -1629,7 +1607,6 @@ class DesignerMainWindow(QMainWindow):
             axes.contourf(X, Y*1000.0, Z)
             axes.grid(True)
             axes.set_title('Emittance color plot')
-            # axes.set_ylim([ymin,ymax])
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliradians')
             axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
@@ -1642,7 +1619,7 @@ class DesignerMainWindow(QMainWindow):
         # plot levels
         if int(self.comboBox.currentIndex()) == 7:
             self.clearPicture()
-            CS = axes.contour(X, Y*1000.0, Z, linewidths=1.0, levels=levels[::-1])
+            CS = axes.contour(X, Y*1000.0, Z, linewidths=1.5, levels=levels[::-1])
             axes.grid(True)
             axes.set_title('Emittance contour plot')
             axes.set_xlabel('X, mm')
@@ -1663,152 +1640,9 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             return
 
-        # Emittance contour plot of beam cross-section
-        if int(self.comboBox.currentIndex()) == 8:
-            # X3,Y3,Z3 -> X5,Y5,Z5 resample to NxN array
-            xmin = X3.min()
-            xmax = X3.max()
-            if abs(xmin) > abs(xmax):
-                xmax = abs(xmin)
-            else:
-                xmax = abs(xmax)
-            xmax *= 1.05
-            xmin = -xmax
-            xs = np.linspace(xmin, xmax, ny)
-            ymin = Y3.min()
-            ymax = Y3.max()
-            if abs(ymin) > abs(ymax):
-                ymax = abs(ymin)
-            else:
-                ymax = abs(ymax)
-            ymax *= 1.05
-            ymin = -ymax
-            ys = np.linspace(ymin, ymax, ny)
-            for i in range(ny):
-                X5[i, :] = xs
-                Y5[:, i] = ys
-            for i in range(ny - 1):
-                x = X3[i, :]
-                z = Z3[i, :]
-                f = interp1d(x, z, kind='cubic', bounds_error=False, fill_value=0.0)
-                Z5[i, :] = f(X5[i, :])
-            # remove negative currents
-            Z5[Z5 < 0.0] = 0.0
-            # X5,Y5,Z5 -> X6,Y6,Z6 return shift of jets back
-            g = interp1d(X3[0, :], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
-            for i in range(ny):
-                y = Y5[:, i]
-                z = Z5[:, i]
-                f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-                s = g(X5[0, i])
-                Z6[:, i] = f(Y5[:, i] - s)
-            Z6[Z6 < 0.0] = 0.0
-            X = X6
-            Y = Y6
-            Z = Z6  # [A/mm^2/Radian]
-            if self.read_parameter(0, 'center', 'avg') == 'max':
-                n = np.argmax(Z)
-                Xavg = X.flat[n]
-                Yavg = Y.flat[n]
-            if self.read_parameter(0, 'center', 'avg') == 'avg':
-                Zt = self.integrate2d(X, Y, Z)  # [A]
-                Xavg = self.integrate2d(X, Y, X * Z) / Zt
-                Yavg = self.integrate2d(X, Y, Y * Z) / Zt
-            # recalculate Z
-            for i in range(ny):
-                y = Y[:, i]
-                z = Z[:, i]
-                f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-                Z[:, i] = f(Y[:, i] + Yavg)
-            for i in range(ny):
-                x = X[i, :]
-                z = Z[i, :]
-                f = interp1d(x, z, kind='linear', bounds_error=False, fill_value=0.0)
-                Z[i, :] = f(X[i, :] + Xavg)
-            Z[Z < 0.0] = 0.0
-
-            # save data to text file
-            folder = self.folderName
-            fn = os.path.join(str(folder), _progName + '_X_cs.gz')
-            np.savetxt(fn, X, delimiter='; ')
-            fn = os.path.join(str(folder), _progName + '_Y_cs.gz')
-            np.savetxt(fn, Y, delimiter='; ')
-            fn = os.path.join(str(folder), _progName + '_Z_cs.gz')
-            np.savetxt(fn, Z, delimiter='; ')
-
-            self.clearPicture()
-            axes.contour(X, Y, Z, linewidths=1.0)
-            axes.grid(True)
-            axes.set_title('Emittance contour plot of beam cross-section')
-            axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliRadians')
-            axes.annotate('Cross-section I=%5.1f mkA' % (self.Ics * 1e6) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
-                    self.RMScs * beta),
-                          xy=(.5, .2), xycoords='figure fraction',
-                          horizontalalignment='center', verticalalignment='top',
-                          fontsize=11)
-            self.mplWidget.canvas.draw()
-
-    '''
-    def resampleAndCenter(x,y,z,N):
-            # x,y,z -> X5,Y5,Z5 resample to NxN array
-            xmax = max([abs(x.max()), abs(x.min())])*1.05
-            xmin = -xmax
-            xarr = np.linspace(-xmax, xmax, N)
-            ymax = max([abs(y.max()), abs(y.min())])*1.05
-            ymin = -ymax
-            yarr = np.linspace(ymin, ymax, N)
-            X5 = np.zeros((N, N), dtype=np.float64)
-            Y5 = np.zeros((N, N), dtype=np.float64)
-            Z5 = np.zeros((N, N), dtype=np.float64)
-            for i in range(N) :
-                X5[i,:] = xarr
-                Y5[:,i] = yarr
-            for i in range(N-1) :
-                xi = x[i,:]
-                zi = z[i,:]
-                f = interp1d(xi, zi, kind='cubic', bounds_error=False, fill_value=0.0)
-                Z5[i,:] = f(X5[i,:])
-            # remove negative currents
-            Z5[Z5 < 0.0] = 0.0
-            # X5,Y5,Z5 -> X6,Y6,Z6 return shift of jets back
-            g = interp1d(X3[0,:], Shift, kind='cubic', bounds_error=False, fill_value=0.0)
-            for i in range(N) :
-                y = Y5[:,i]
-                z = Z5[:,i]
-                f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-                s = g(X5[0,i])
-                Z6[:,i] = f(Y5[:,i] - s)
-            Z6[Z6 < 0.0] = 0.0
-            X = X6
-            Y = Y6
-            Z = Z6 # [A/mm^2/Radian]
-            if self.readParameter(0, 'center', 'avg') == 'max':
-                n = np.argmax(Z)
-                Xavg = X.flat[n]
-                Yavg = Y.flat[n]
-            if self.readParameter(0, 'center', 'avg') == 'avg':
-                Zt = self.integrate2d(X,Y,Z) # [A]
-                Xavg = self.integrate2d(X,Y,X*Z)/Zt
-                Yavg = self.integrate2d(X,Y,Y*Z)/Zt
-            # recalculate Z
-            for i in range(N) :
-                y = Y[:,i]
-                z = Z[:,i]
-                f = interp1d(y, z, kind='linear', bounds_error=False, fill_value=0.0)
-                Z[:,i] = f(Y[:,i] + Yavg)
-            for i in range(N) :
-                x = X[i,:]
-                z = Z[i,:]
-                f = interp1d(x, z, kind='linear', bounds_error=False, fill_value=0.0)
-                Z[i,:] = f(X[i,:] + Xavg)
-            Z[Z < 0.0] = 0.0
-    return (X,Y,Z)
-    '''
-
     def saveSettings(self, folder='', fileName=_settingsFile):
+        fullName = os.path.join(str(folder), fileName)
         try:
-            fullName = os.path.join(str(folder), fileName)
             # save window size and position
             p = self.pos()
             s = self.size()
@@ -1847,8 +1681,8 @@ class DesignerMainWindow(QMainWindow):
         except:
             pass
         self.conf = {}
+        fullName = os.path.join(str(folder), fileName)
         try:
-            fullName = os.path.join(str(folder), fileName)
             with open(fullName, 'r', encoding='utf-8') as configfile:
                 s = configfile.read()
                 self.conf = json.loads(s)
@@ -1882,12 +1716,10 @@ class DesignerMainWindow(QMainWindow):
             return False
 
     def restoreData(self, folder='', fileName=_dataFile):
-        '''
-        Restore program data from fileName in folder.
-        '''
+        fullName = os.path.join(str(folder), fileName)
+        dbase = None
         try:
             # read saved settings
-            fullName = os.path.join(str(folder), fileName)
             dbase = shelve.open(fullName)
             # restore automatically processed parameters
             self.paramsAuto = dbase['paramsAuto']
@@ -1908,8 +1740,8 @@ class DesignerMainWindow(QMainWindow):
     def execInitScript(self, folder=None, fileName=_initScript):
         if folder is None:
             folder = self.folderName
+        fullName = os.path.join(str(folder), fileName)
         try:
-            fullName = os.path.join(str(folder), fileName)
             exec(open(fullName).read(), globals(), locals())
             self.logger.info('Init script %s executed.' % fullName)
         except:
