@@ -1159,6 +1159,7 @@ class DesignerMainWindow(QMainWindow):
         x_max = x1.max()
         deltax = x1[1:] - x[:-1]
         deltas = s[1:] - s[:-1]
+        d = deltas / deltax
         def f(x, y):
             if x > x_max or x < x_min:
                 return 0.0
@@ -1169,14 +1170,12 @@ class DesignerMainWindow(QMainWindow):
             i1 = i - 1
             if xi == 0:
                 return F[0](y)
-            dx = deltax[i1]
             d1 = x - x1[i1]
             d2 = x1[xi] - x
-            dy = deltas[i1]
-            d = dy / dx
-            f1 = F[i1](y - d * d1)
-            f2 = F[xi](y + d * d2)
-            return (f1 * d2 + f2 * d1) / dx
+            dd = d[i1]
+            f1 = F[i1](y - dd * d1)
+            f2 = F[xi](y + dd * d2)
+            return (f1 * d2 + f2 * d1) / deltax[i1]
         return f
 
     def integrate2d(self, x, y, z):
@@ -1491,18 +1490,18 @@ class DesignerMainWindow(QMainWindow):
                 y = -np.sqrt(dx2[mask])
             xmask = x[mask]
             for k in range(ny_):
-                # xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
-                # mask = (xsub >= y_min) * (xsub <= ymax)
-                # xn = ((xmask-x_min)/x_delta).astype(int)[mask]
-                # yn = ((xsub-y_min)/y_delta).astype(int)[mask]
-                # #z = self.map(g, xmask + X2avg, xsub)
-                # z = Z2[xn, yn].flatten()
-                #
-                # v = 2.0 * trapz(z, y)
-                # Z4[k, i] = v
-                xsub = Y4[:, 0] + Y2avg - shift_k * (xi - xmask)
-                z = g(xmask + X2avg, xsub)
+                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
+                mask = (xsub >= y_min) * (xsub <= ymax)
+                xn = ((xmask-x_min)/x_delta).astype(int)[mask]
+                yn = ((xsub-y_min)/y_delta).astype(int)[mask]
+                z = self.map(g, xmask + X2avg, xsub)
+                #z = Z2[xn, yn].flatten()
+
                 v = 2.0 * trapz(z, y)
+                # Z4[k, i] = v
+                # xsub = Y4[:, 0] + Y2avg - shift_k * (xi - xmask)
+                # z = g(xmask + X2avg, xsub)
+                # v = 2.0 * trapz(z, y)
                 Z4[:, i] = v
 
         self.logger.info('Elapsed %s seconds', time.time() - t0)
