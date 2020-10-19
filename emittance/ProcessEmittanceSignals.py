@@ -306,7 +306,7 @@ class DesignerMainWindow(QMainWindow):
         params[0]['range'] = xr
         self.logger.info('Scan voltage region %s' % str(xr))
         # debug draw 8 Scan voltage region
-        self.debugDraw([ix, x, ix[xi], x[xi]])
+        # self.debugDraw([ix, x, ix[xi], x[xi]])
 
         # auto process data for zero line and offset
         self.logger.info('Processing zero lines and offsets ...')
@@ -382,7 +382,7 @@ class DesignerMainWindow(QMainWindow):
                 zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
                 weight[j, index4] += w
             # debug draw 10 zero line intermediate results
-            self.debugDraw([ix, data, zero, params])
+            # self.debugDraw([ix, data, zero, params])
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
