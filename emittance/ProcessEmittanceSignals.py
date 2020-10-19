@@ -214,6 +214,7 @@ class DesignerMainWindow(QMainWindow):
         self.mplWidget.canvas.draw()
 
     def parseFolder(self, folder=None, mask='*.isf'):
+        pass
         if folder is None:
             folder = self.folderName
         self.logger.info('%s%s reading data from %s' % (_progName, _progVersion, folder))
@@ -245,8 +246,7 @@ class DesignerMainWindow(QMainWindow):
         self.listWidget.addItems(names)
 
     def processFolder(self, folder=None):
-        if folder is None:
-            folder = self.folderName
+        folder = self.folderName
         # execute init script
         self.execInitScript()
         # parse folder
@@ -502,6 +502,7 @@ class DesignerMainWindow(QMainWindow):
             # self.logger.info('X00=%f mm DX=%f mm'%(x00[i-1], dx[i-1]))
         # self.logger.info calculated parameters
         self.logger.info('Calculated parameters:')
+        s = ''
         for i in range(nx):
             try:
                 s = 'Chan.%3d ' % i
@@ -535,7 +536,7 @@ class DesignerMainWindow(QMainWindow):
         self.saveData(folder=self.folderName)
         return True
 
-    def debugDraw(self, par=[]):
+    def debugDraw(self, par=()):
         try:
             axes = self.mplWidget.canvas.ax
             # debug draw 17
@@ -672,7 +673,7 @@ class DesignerMainWindow(QMainWindow):
 
     def read_parameter(self, row, name, default=None, dtype=None, info=False, select=''):
         if name == 'zero':
-            return self.readZero(row)
+            return self.read_zero(row)
         vd = default
         t = 'default'
         v = vd
@@ -701,7 +702,7 @@ class DesignerMainWindow(QMainWindow):
             return vd
         return v
 
-    def readZero(self, row):
+    def read_zero(self, row):
         if self.data is None:
             return None
         try:
@@ -759,7 +760,7 @@ class DesignerMainWindow(QMainWindow):
         # offset
         of = self.read_parameter(row, "offset", 0.0, float)
         # zero line
-        z = self.readZero(row)
+        z = self.read_zero(row)
         # smooth
         smooth(y, ns)
         smooth(z, 2 * ns)
@@ -879,7 +880,7 @@ class DesignerMainWindow(QMainWindow):
             y = self.data[row, :].copy()
             ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
             smooth(y, ns)
-            z = self.readZero(row) + self.read_parameter(row, 'offset')
+            z = self.read_zero(row) + self.read_parameter(row, 'offset')
             axes.plot(x, y, label='raw ' + str(row))
             axes.plot(x, z, label='zero' + str(row))
         self.zoplot()
@@ -953,7 +954,7 @@ class DesignerMainWindow(QMainWindow):
         y = self.data[row, :].copy()
         ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
         smooth(y, ns)
-        z = self.readZero(row) + self.read_parameter(row, 'offset')
+        z = self.read_zero(row) + self.read_parameter(row, 'offset')
         axes.plot(x, y, label='raw ' + str(row))
         axes.plot(x, z, label='zero' + str(row))
         self.zoplot()
@@ -1249,7 +1250,7 @@ class DesignerMainWindow(QMainWindow):
         offsets = []
         for i in range(1, nx):
             ndh[i - 1] = self.read_parameter(i, 'ndh', 0.0, float)
-            ranges.append(self.read_parameter(i, 'range', (10, 9990)))
+            ranges.append(self.read_parameter(i, 'range', [10, 9990]))
             scales.append(self.read_parameter(i, 'scale', 2.0, float))
             offsets.append(self.read_parameter(i, 'offset', 0.0, float))
         # print parameters
@@ -1268,7 +1269,7 @@ class DesignerMainWindow(QMainWindow):
             s = 'Chan.%3d ' % i
             if i > 0:
                 s += 'x0=%5.1f [mm]; ndh=%5.1f [mm]; ' % (x0[i-1], ndh[i-1])
-                s += 'range=%s; ' % ranges[i-1]
+                s += 'range=%s; ' % str(ranges[i-1])
                 s += 'offset=%f [V]; ' % offsets[i-1]
                 self.logger.info(s)
 
