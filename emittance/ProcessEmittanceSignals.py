@@ -1381,7 +1381,7 @@ class DesignerMainWindow(QMainWindow):
         # plot Z2 -> Z1 interpolated for NxN grid
         if int(self.comboBox.currentIndex()) == 12:
             self.clearPicture()
-            axes.contour(Z2, Z2, Z2)
+            axes.contour(X2, Y2, Z2)
             # plt.matshow(Z2)
             axes.set_title('Z2 NxN resampled')
             axes.grid(True)
