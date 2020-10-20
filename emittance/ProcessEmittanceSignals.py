@@ -310,8 +310,8 @@ class DesignerMainWindow(QMainWindow):
         # auto process data for zero line and offset
         self.logger.info('Processing zero lines and offsets ...')
         # sort data to maximal signals
-        smax_index = np.argmin(data, 1)
-        smax = np.min(data, 1)
+        smax = np.min(data[1:, :], 1)
+        sm_index = smax.argsort()
 
 
         for i in range(1, nx - 1):
