@@ -312,81 +312,83 @@ class DesignerMainWindow(QMainWindow):
         # sort data to maximal signals
         smax = np.min(data[1:, :], 1)
         sm_index = smax.argsort()
-
-
-        for i in range(1, nx - 1):
-            # self.logger.info('Channel %d'%(i))
-            y1 = data[i, :].copy()
-            offset1 = params[i]['offset']
-            y1 = y1 - offset1
-            y2 = data[i + 1, :].copy()
-            offset2 = params[i + 1]['offset']
-            y2 = y2 - offset2
-            # double smooth because zero line is slow
-            smooth(y1, params[i]['smooth'] * 2)
-            smooth(y2, params[i + 1]['smooth'] * 2)
-            # offsets calculated from upper 10%
-            y1min = np.min(y1)
-            y1max = np.max(y1)
-            dy1 = y1max - y1min
-            y2min = np.min(y2)
-            y2max = np.max(y2)
-            dy2 = y2max - y2min
-            dy = max([dy1, dy2])
-            i1 = np.where(y1 > (y1max - 0.1 * dy))[0]
-            o1 = np.average(y1[i1])
-            # self.logger.info('Offset 1 %f'%o1)
-            i2 = np.where(y2 > (y2max - 0.1 * dy))[0]
-            o2 = np.average(y2[i2])
-            # self.logger.info('Offset 2 %f'%o2)
-            # debug draw 9 Offset calculation
-            self.debugDraw([i, ix, y1, o1, y2, o2, i1, i2])
-            # correct y2 and offset2 for calculated offsets
-            y2 = y2 - o2 + o1
-            offset2 = offset2 + o2 - o1
-            # zero line = where 2 signals are almost equal
-            mask = np.abs(y1 - y2) < 0.05 * dy1
-            index = np.where(mask)[0]
-            # filter signal intersection regions
-            index = restoreFromRegions(findRegions(index, 50, 300, 100, 100, length=ny))
-            if len(index) <= 0:
+        for i in sm_index+1:
+            self.logger.info('Channel %d', i)
+            try:
+                y1 = data[i, :].copy()
+                y2 = data[i + 1, :].copy()
+                # subtract offset
+                offset1 = params[i]['offset']
+                y1 = y1 - offset1
+                offset2 = params[i + 1]['offset']
+                y2 = y2 - offset2
+                # double smooth because zero line is slow
+                smooth(y1, params[i]['smooth'] * 2)
+                smooth(y2, params[i + 1]['smooth'] * 2)
+                # offsets calculated from upper 10%
+                y1min = np.min(y1)
+                y1max = np.max(y1)
+                dy1 = y1max - y1min
+                y2min = np.min(y2)
+                y2max = np.max(y2)
+                dy2 = y2max - y2min
+                dy = max([dy1, dy2])
+                i1 = np.where(y1 > (y1max - 0.1 * dy))[0]
+                o1 = np.average(y1[i1])
+                # self.logger.info('Offset 1 %f'%o1)
+                i2 = np.where(y2 > (y2max - 0.1 * dy))[0]
+                o2 = np.average(y2[i2])
+                # self.logger.info('Offset 2 %f'%o2)
+                # debug draw 9 Offset calculation
+                self.debugDraw([i, ix, y1, o1, y2, o2, i1, i2])
+                # correct y2 and offset2 for calculated offsets
+                y2 = y2 - o2 + o1
+                offset2 = offset2 + o2 - o1
+                # zero line = where 2 signals are almost equal
+                mask = np.abs(y1 - y2) < 0.05 * dy1
                 index = np.where(mask)[0]
-            # new offset
-            offset = np.average(y2[index] - y1[index])
-            # self.logger.info('Offset for channel %d = %f'%((i+1), offset))
-            # shift y2 and offset2
-            y2 = y2 - offset
-            offset2 = offset2 + offset
-            # save processed offset
-            params[i + 1]['offset'] = offset2
-            # index with new offset
-            # self.logger.info('4% index with corrected offset')
-            mask = np.abs(y1 - y2) < 0.04 * dy1
-            index = np.where(mask)[0]
-            # self.logger.info(findRegionsText(index))
-            # filter signal intersection
-            regions = findRegions(index, 50)
-            index = restoreFromRegions(regions, 0, 150, length=ny)
-            # self.logger.info(findRegionsText(index))
-            # choose largest values
-            mask[:] = False
-            mask[index] = True
-            mask3 = np.logical_and(mask, y1 >= y2)
-            index3 = np.where(mask3)[0]
-            # update zero line for all channels
-            for j in range(1, nx):
-                w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
-                zero[j, index3] = (zero[j, index3] * weight[j, index3] + y1[index3] * w) / (weight[j, index3] + w)
-                weight[j, index3] += w
-            mask4 = np.logical_and(mask, y1 <= y2)
-            index4 = np.where(mask4)[0]
-            # update zero line for all channels
-            for j in range(1, nx):
-                w = 1.0 / ((abs(i + 1 - j)) ** 2 + 1.0)
-                zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
-                weight[j, index4] += w
-            # debug draw 10 zero line intermediate results
-            # self.debugDraw([ix, data, zero, params])
+                # filter signal intersection regions
+                index = restoreFromRegions(findRegions(index, 50, 300, 100, 100, length=ny))
+                if len(index) <= 0:
+                    index = np.where(mask)[0]
+                # new offset
+                offset = np.average(y2[index] - y1[index])
+                # self.logger.info('Offset for channel %d = %f'%((i+1), offset))
+                # shift y2 and offset2
+                y2 = y2 - offset
+                offset2 = offset2 + offset
+                # save processed offset
+                params[i + 1]['offset'] = offset2
+                # index with new offset
+                # self.logger.info('4% index with corrected offset')
+                mask = np.abs(y1 - y2) < 0.04 * dy1
+                index = np.where(mask)[0]
+                # self.logger.info(findRegionsText(index))
+                # filter signal intersection
+                regions = findRegions(index, 50)
+                index = restoreFromRegions(regions, 0, 150, length=ny)
+                # self.logger.info(findRegionsText(index))
+                # choose largest values
+                mask[:] = False
+                mask[index] = True
+                mask3 = np.logical_and(mask, y1 >= y2)
+                index3 = np.where(mask3)[0]
+                # update zero line for all channels
+                for j in range(1, nx):
+                    w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
+                    zero[j, index3] = (zero[j, index3] * weight[j, index3] + y1[index3] * w) / (weight[j, index3] + w)
+                    weight[j, index3] += w
+                mask4 = np.logical_and(mask, y1 <= y2)
+                index4 = np.where(mask4)[0]
+                # update zero line for all channels
+                for j in range(1, nx):
+                    w = 1.0 / ((abs(i + 1 - j)) ** 2 + 1.0)
+                    zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
+                    weight[j, index4] += w
+                # debug draw 10 zero line intermediate results
+                # self.debugDraw([ix, data, zero, params])
+            except:
+                pass
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
