@@ -4,7 +4,9 @@ Created on 31 мая 2017 г.
 
 @author: Sanin
 '''
-def findRegions(index, glue=10, threshold=1, triml=0, trimr=0, length=None):
+
+
+def find_regions(index, glue=0, threshold=1, triml=0, trimr=0, length=None):
     n = len(index)
     if n <= 1:
         return []
@@ -17,20 +19,15 @@ def findRegions(index, glue=10, threshold=1, triml=0, trimr=0, length=None):
         i2 = index[i] + 1
         i3 = index[i+1]
         if i3-i2 > glue:
-            try:
-                if i2-i1 > threshold :
-                    if i1 > 0 :
-                        i1 += triml
-                    if i2 < length :
-                        i2 -= trimr
-                    if (i2-1) > i1 :
-                        regions.append([i1,i2-1])
-            except:
-                pass
+            if i2-i1 > threshold :
+                i1 += triml
+                i2 -= trimr
+                if (i2-1) > i1 :
+                    regions.append([i1,i2-1])
             i1 = i3
     i1 += triml
     i3 -= trimr
-    if i1 < i3: 
+    if i1 < i3:
         regions.append([i1,i3+1])
     return regions
 

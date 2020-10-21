@@ -13,7 +13,7 @@ import sys
 import time
 import json
 
-from emittance.findRegions import findRegions as findRegions
+from emittance.findRegions import find_regions as find_regions
 from emittance.findRegions import restoreFromRegions as restoreFromRegions
 from emittance.smooth import smooth
 from emittance.readTekFiles import readTekFiles
@@ -228,6 +228,9 @@ class DesignerMainWindow(QMainWindow):
             return
         self.logger.info('%d files found' % nx)
         self.folderName = folder
+        self.nx = nx
+        self.ny = self.data.shape[1]
+        self.iy = np.arange(self.ny)
         # switch to local log file
         # printl('', stamp=False, fileName = os.path.join(str(folder), _logFile))
         self.logger.removeHandler(self.file_handler)
@@ -245,7 +248,17 @@ class DesignerMainWindow(QMainWindow):
         # fill listWidget
         self.listWidget.addItems(names)
 
-    def processFolder1(self, *args, **kwargs):
+    def plot_signal(self, y, x=None, xlabel=''):
+        axes = self.mplWidget.canvas.ax
+        if x is None:
+            x = self.iy
+            xlabel = 'Index'
+        axes.plot(x, y)
+        axes.set_xlabel(xlabel)
+        self.mplWidget.canvas.draw()
+
+
+    def processFolder(self, *args, **kwargs):
         folder = self.folderName
         self.logger.info('Processing folder %s', folder)
         # execute init script
@@ -293,14 +306,14 @@ class DesignerMainWindow(QMainWindow):
         sv_xdiff = np.diff(sv_x)
         sv_xdiff = np.append(sv_xdiff, sv_xdiff[-1])
         mask = sv_xdiff >= 0.0
-        regions = findRegions(np.where(mask)[0])
+        regions = find_regions(np.where(mask)[0])
         # find longest region
         xr = [0, 1]
         for r in regions:
             if r[1] - r[0] >= xr[1] - xr[0]:
                 xr = r
         mask = sv_xdiff <= 0.0
-        regions = findRegions(np.where(mask)[0])
+        regions = find_regions(np.where(mask)[0])
         for r in regions:
             if r[1] - r[0] >= xr[1] - xr[0]:
                 xr = r
@@ -312,87 +325,112 @@ class DesignerMainWindow(QMainWindow):
         # sort data to maximal signals
         smax = np.min(data[1:, :], 1)
         sm_index = smax.argsort()
-        for i in sm_index+1:
-            self.logger.info('Channel %d', i)
-            try:
-                y1 = data[i, :].copy()
-                y2 = data[i + 1, :].copy()
-                # subtract offset
-                offset1 = params[i]['offset']
-                y1 = y1 - offset1
-                offset2 = params[i + 1]['offset']
-                y2 = y2 - offset2
-                # double smooth because zero line is slow
-                smooth(y1, params[i]['smooth'] * 2)
-                smooth(y2, params[i + 1]['smooth'] * 2)
-                # offsets calculated from upper 10%
-                y1min = np.min(y1)
-                y1max = np.max(y1)
-                dy1 = y1max - y1min
-                y2min = np.min(y2)
-                y2max = np.max(y2)
-                dy2 = y2max - y2min
-                dy = max([dy1, dy2])
-                i1 = np.where(y1 > (y1max - 0.1 * dy))[0]
-                o1 = np.average(y1[i1])
-                # self.logger.info('Offset 1 %f'%o1)
-                i2 = np.where(y2 > (y2max - 0.1 * dy))[0]
-                o2 = np.average(y2[i2])
-                # self.logger.info('Offset 2 %f'%o2)
-                # debug draw 9 Offset calculation
-                self.debugDraw([i, ix, y1, o1, y2, o2, i1, i2])
-                # correct y2 and offset2 for calculated offsets
-                y2 = y2 - o2 + o1
-                offset2 = offset2 + o2 - o1
-                # zero line = where 2 signals are almost equal
-                mask = np.abs(y1 - y2) < 0.05 * dy1
+        # use the largest channel as reference
+        y = data[sm_index[0], :].copy()
+        i = sm_index[0]
+        offset = params[i]['offset']
+        z = params[i]['zero']
+        smooth(y, params[i]['smooth'] * 2)
+        y = y - offset - z
+        ymin = np.min(y)
+        ymax = np.max(y)
+        ydelta = ymax - ymin
+        ymean = y.mean()
+        ysigma = y.std()
+        i1 = np.where(y > (ymax - 0.1 * ydelta))[0]
+        z[i1] = y[i1]
+        axes = self.mplWidget.canvas.ax
+        # axes.plot(ix, y)
+        # axes.plot(ix, z)
+        # axes.set_title('Largest signal jet %s' % i)
+        # axes.set_xlabel('n, Index')
+        # axes.set_ylabel('Voltage, V')
+        # self.mplWidget.canvas.draw()
+
+        # process other channels
+        for i in sm_index[1:]+1:
+            self.logger.info('Proseccing channel %d', i)
+            # select adjacent channel
+            i1 = i + 1
+            if i1 >= nx:
+                i1 = i - 1
+            y1 = data[i, :].copy()
+            y2 = data[i1, :].copy()
+            # subtract offset and zero
+            offset1 = params[i]['offset']
+            zero1 = params[i]['zero']
+            #y1 = y1 - offset1 - zero1
+            offset2 = params[i1]['offset']
+            zero2 = params[i1]['zero']
+            #y2 = y2 - offset2 - zero2
+            # double smooth because zero line is slow
+            smooth(y1, params[i]['smooth'] * 2)
+            smooth(y2, params[i1]['smooth'] * 2)
+            # offsets calculated from upper 10%
+            y1min = np.min(y1)
+            y1max = np.max(y1)
+            dy1 = y1max - y1min
+            y2min = np.min(y2)
+            y2max = np.max(y2)
+            dy2 = y2max - y2min
+            # zero line = where 2 signals are almost equal
+            dy = np.abs(y1 - y2)
+            mask = dy < (0.05 * dy.ptp())
+            index = np.where(mask)[0]
+            # plot interm results
+            axes.plot(ix, dy)
+            axes.plot(ix[index], dy[index])
+            axes.set_title('Zero line %s and %s' % (i, i1))
+            axes.set_xlabel('Index')
+            axes.set_ylabel('Voltage, V')
+            self.mplWidget.canvas.draw()
+            # filter signal intersection regions
+            index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
+            if len(index) <= 0:
                 index = np.where(mask)[0]
-                # filter signal intersection regions
-                index = restoreFromRegions(findRegions(index, 50, 300, 100, 100, length=ny))
-                if len(index) <= 0:
-                    index = np.where(mask)[0]
-                # new offset
-                offset = np.average(y2[index] - y1[index])
-                # self.logger.info('Offset for channel %d = %f'%((i+1), offset))
-                # shift y2 and offset2
-                y2 = y2 - offset
-                offset2 = offset2 + offset
-                # save processed offset
-                params[i + 1]['offset'] = offset2
-                # index with new offset
-                # self.logger.info('4% index with corrected offset')
-                mask = np.abs(y1 - y2) < 0.04 * dy1
-                index = np.where(mask)[0]
-                # self.logger.info(findRegionsText(index))
-                # filter signal intersection
-                regions = findRegions(index, 50)
-                index = restoreFromRegions(regions, 0, 150, length=ny)
-                # self.logger.info(findRegionsText(index))
-                # choose largest values
-                mask[:] = False
-                mask[index] = True
-                mask3 = np.logical_and(mask, y1 >= y2)
-                index3 = np.where(mask3)[0]
-                # update zero line for all channels
-                for j in range(1, nx):
+            axes.plot(ix[index], dy[index])
+            self.mplWidget.canvas.draw()
+            # new offset
+            offset = np.average(y2[index] - y1[index])
+            if np.isnan(offset):
+                offset = 0.0
+            self.logger.info('Offset for channel %d = %f'%((i+1), offset))
+            # shift y2 and offset2
+            y2 = y2 - offset
+            offset2 = offset2 + offset
+            # save processed offset
+            params[i1]['offset'] = offset2
+            # index with new offset
+            # self.logger.info('4% index with corrected offset')
+            dy = np.abs(y1 - y2)
+            mask = dy < (0.05 * dy.ptp())
+            index = np.where(mask)[0]
+            # self.logger.info(findRegionsText(index))
+            # filter signal intersection
+            regions = find_regions(index, 50, 300, 100, 100)
+            index = restoreFromRegions(regions, 0, 150, length=ny)
+            # self.logger.info(findRegionsText(index))
+            axes.plot(ix, y1)
+            axes.plot(ix, y2)
+            axes.plot(ix[index], y1[index])
+            axes.plot(ix[index], y2[index])
+            self.mplWidget.canvas.draw()
+            # update zero line for all channels
+            for j in range(1, nx):
+                if j != i and j != i1:
                     w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
-                    zero[j, index3] = (zero[j, index3] * weight[j, index3] + y1[index3] * w) / (weight[j, index3] + w)
-                    weight[j, index3] += w
-                mask4 = np.logical_and(mask, y1 <= y2)
-                index4 = np.where(mask4)[0]
-                # update zero line for all channels
-                for j in range(1, nx):
-                    w = 1.0 / ((abs(i + 1 - j)) ** 2 + 1.0)
-                    zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
-                    weight[j, index4] += w
-                # debug draw 10 zero line intermediate results
-                # self.debugDraw([ix, data, zero, params])
-            except:
-                pass
+                else:
+                    w = 10.0
+                zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
+                weight[j, index] += w
+                self.paramsAuto[i]['zero'] = zero[i]
+            # self.mplWidget.canvas.ax.clear()
+            # self.mplWidget.canvas.draw()
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
 
+        x = sv_x
         # determine signal area
         self.logger.info('Processing signals ...')
         for i in range(1, nx):
@@ -407,7 +445,7 @@ class DesignerMainWindow(QMainWindow):
             dy = ymax - ymin
             mask = y < (ymax - 0.6 * dy)
             index = np.where(mask)[0]
-            ra = findRegions(index)
+            ra = find_regions(index)
             params[i]['range'] = xr
             # determine scale
             is1 = xi[0]
@@ -542,7 +580,7 @@ class DesignerMainWindow(QMainWindow):
         self.saveData(folder=self.folderName)
         return True
 
-    def processFolder(self, folder=None):
+    def processFolder1(self, folder=None):
         folder = self.folderName
         # execute init script
         self.execInitScript()
@@ -588,14 +626,14 @@ class DesignerMainWindow(QMainWindow):
         xdiff = np.diff(x)
         xdiff = np.append(xdiff, xdiff[-1])
         mask = xdiff >= 0.0
-        regions = findRegions(np.where(mask)[0])
+        regions = find_regions(np.where(mask)[0])
         # find longest region
         xr = [0, 1]
         for r in regions:
             if r[1] - r[0] >= xr[1] - xr[0]:
                 xr = r
         mask = xdiff <= 0.0
-        regions = findRegions(np.where(mask)[0])
+        regions = find_regions(np.where(mask)[0])
         for r in regions:
             if r[1] - r[0] >= xr[1] - xr[0]:
                 xr = r
@@ -641,7 +679,7 @@ class DesignerMainWindow(QMainWindow):
             mask = np.abs(y1 - y2) < 0.05 * dy1
             index = np.where(mask)[0]
             # filter signal intersection regions
-            index = restoreFromRegions(findRegions(index, 50, 300, 100, 100, length=ny))
+            index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
             if len(index) <= 0:
                 index = np.where(mask)[0]
             # new offset
@@ -658,7 +696,7 @@ class DesignerMainWindow(QMainWindow):
             index = np.where(mask)[0]
             # self.logger.info(findRegionsText(index))
             # filter signal intersection
-            regions = findRegions(index, 50)
+            regions = find_regions(index, 50)
             index = restoreFromRegions(regions, 0, 150, length=ny)
             # self.logger.info(findRegionsText(index))
             # choose largest values
@@ -698,7 +736,7 @@ class DesignerMainWindow(QMainWindow):
             dy = ymax - ymin
             mask = y < (ymax - 0.6 * dy)
             index = np.where(mask)[0]
-            ra = findRegions(index)
+            ra = find_regions(index)
             params[i]['range'] = xr
             # determine scale
             is1 = xi[0]
