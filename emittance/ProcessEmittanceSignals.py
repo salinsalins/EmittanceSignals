@@ -349,7 +349,7 @@ class DesignerMainWindow(QMainWindow):
 
         # process other channels
         for i in sm_index[1:]+1:
-            self.logger.info('Proseccing channel %d', i)
+            self.logger.info('Processing channel %d', i)
             # select adjacent channel
             i1 = i + 1
             if i1 >= nx:
@@ -394,7 +394,7 @@ class DesignerMainWindow(QMainWindow):
             offset = np.average(y2[index] - y1[index])
             if np.isnan(offset):
                 offset = 0.0
-            self.logger.info('Offset for channel %d = %f'%((i+1), offset))
+            self.logger.info('Offset for channel %d = %f' % ((i+1), offset))
             # shift y2 and offset2
             y2 = y2 - offset
             offset2 = offset2 + offset
@@ -423,7 +423,7 @@ class DesignerMainWindow(QMainWindow):
                     w = 10.0
                 zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
                 weight[j, index] += w
-                self.paramsAuto[i]['zero'] = zero[i]
+                #self.paramsAuto[i]['zero'] = zero[i]
             # self.mplWidget.canvas.ax.clear()
             # self.mplWidget.canvas.draw()
         # save processed zero line
