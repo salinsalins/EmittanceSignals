@@ -248,19 +248,18 @@ class DesignerMainWindow(QMainWindow):
         # fill listWidget
         self.listWidget.addItems(names)
 
-    def plot_signal(self, x, y, index):
+    def plot_signal(self, x, y, index, **kwargs):
         axes = self.mplWidget.canvas.ax
         regions = find_regions(index)
         line = None
         for reg in regions:
             ind = np.arange(reg[0],reg[1])
             if line is None:
-                line = axes.plot(x[ind], y[ind])
+                line = axes.plot(x[ind], y[ind], **kwargs)
             else:
                 cl = line[0].get_color()
                 line = axes.plot(x[ind], y[ind], color=cl)
         self.mplWidget.canvas.draw()
-
 
     def processFolder(self, *args, **kwargs):
         folder = self.folderName
@@ -332,19 +331,16 @@ class DesignerMainWindow(QMainWindow):
         smax = np.min(data[1:, :], 1)
         sm_index = smax.argsort()
         # use the largest channel as reference
-        y = data[sm_index[0], :].copy()
         i = sm_index[0]
+        y = data[i, :].copy()
         offset = params[i]['offset']
         z = params[i]['zero']
         smooth(y, params[i]['smooth'] * 2)
         y = y - offset - z
-        ymin = np.min(y)
         ymax = np.max(y)
-        ydelta = ymax - ymin
-        ymean = y.mean()
-        ysigma = y.std()
-        i1 = np.where(y > (ymax - 0.1 * ydelta))[0]
-        z[i1] = y[i1]
+        #z += ymax
+        #params[i]['zero'] = z
+        #params[i]['offset'] = ymax
         axes = self.mplWidget.canvas.ax
         # axes.plot(ix, y)
         # axes.plot(ix, z)
@@ -383,11 +379,12 @@ class DesignerMainWindow(QMainWindow):
             mask = dy < (0.05 * dy.ptp())
             index = np.where(mask)[0]
             # plot interm results
-            axes.plot(ix, dy)
-            self.plot_signal(ix, dy, index)
+            axes.plot(ix, dy, label='dy')
+            self.plot_signal(ix, dy, index, label='dy[index]')
             axes.set_title('Zero line %s and %s' % (i, i1))
             axes.set_xlabel('Index')
             axes.set_ylabel('Voltage, V')
+            axes.legend(loc='best')
             self.mplWidget.canvas.draw()
             # filter signal intersection regions
             index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
@@ -433,6 +430,8 @@ class DesignerMainWindow(QMainWindow):
             self.plot_signal(ix, zero[i], index)
             self.plot_signal(ix, zero[i1], index)
             self.mplWidget.canvas.draw()
+            if i == 13:
+                break
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
@@ -723,8 +722,8 @@ class DesignerMainWindow(QMainWindow):
                 w = 1.0 / ((abs(i + 1 - j)) ** 2 + 1.0)
                 zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
                 weight[j, index4] += w
-            # debug draw 10 zero line intermediate results
-            # self.debugDraw([ix, data, zero, params])
+            if i == 13:
+                break
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
@@ -1195,58 +1194,55 @@ class DesignerMainWindow(QMainWindow):
     def cls(self):
         self.clearPicture()
 
-    def getX(self):
+    def get_x(self):
         ix = self.spinBox_2.value()
         if ix >= 0:
             x = self.data[ix, :].copy()
             ns = self.read_parameter(ix, "smooth", self.spinBox.value(), int, True)
             smooth(x, ns)
-            xTitle = 'Scan Voltage, V'
+            title = 'Channel %d Voltage, V' % ix
         else:
             x = np.arange(len(self.data[0, :]))
-            xTitle = 'Point index'
-        return (x, xTitle)
+            title = 'Index'
+        return x, title
 
-    def plotRawSignals(self):
-        self.execInitScript()
-        self.clearPicture()
+    def plot_raw_signals(self):
         if self.data is None:
             return
         indexes = self.listWidget.selectedIndexes()
         if len(indexes) <= 0:
             return
+        self.execInitScript()
+        self.clearPicture()
         axes = self.mplWidget.canvas.ax
-        x, xTitle = self.getX()
+        x, xTitle = self.get_x()
         for i in indexes:
             row = i.row()
-            y = self.data[row, :].copy()
+            y = self.data[row, :].copy() - self.read_parameter(row, 'offset')
             ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
             smooth(y, ns)
-            z = self.read_zero(row) + self.read_parameter(row, 'offset')
-            axes.plot(x, y, label='raw ' + str(row))
+            z = self.read_zero(row)
+            axes.plot(x, y, label='raw - offset ' + str(row))
             axes.plot(x, z, label='zero' + str(row))
         self.zoplot()
         axes.grid(True)
         axes.set_title('Signals with zero line')
         axes.set_xlabel(xTitle)
-        axes.set_ylabel('Signal Voltage, V')
+        axes.set_ylabel('Voltage, V')
         axes.legend(loc='best')
         self.mplWidget.canvas.draw()
 
     def plotProcessedSignals(self):
         """Plots processed signals"""
         if self.data is None:
-            self.logger.info('data is None')
             return
-        self.execInitScript()
-        # clear the Axes
-        self.clearPicture()
         indexes = self.listWidget.selectedIndexes()
         if len(indexes) <= 0:
-            self.logger.debug('Selection is empty')
             return
+        self.execInitScript()
+        self.clearPicture()
         axes = self.mplWidget.canvas.ax
-        x, xTitle = self.getX()
+        x, x_title = self.get_x()
         # draw chart
         for i in indexes:
             row = i.row()
@@ -1271,7 +1267,7 @@ class DesignerMainWindow(QMainWindow):
         # plot zero line
         self.zoplot()
         axes.set_title('Processed Signals')
-        axes.set_xlabel(xTitle)
+        axes.set_xlabel(x_title)
         axes.set_ylabel('Voltage, V')
         axes.legend(loc='best')
         # force an image redraw
@@ -1292,7 +1288,7 @@ class DesignerMainWindow(QMainWindow):
             return
         # draw chart
         row = indexes[0].row()
-        x, xTitle = self.getX()
+        x, xTitle = self.get_x()
         y = self.data[row, :].copy()
         ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
         smooth(y, ns)
@@ -1344,7 +1340,7 @@ class DesignerMainWindow(QMainWindow):
             return
 
         if int(self.comboBox.currentIndex()) == 0:
-            self.plotRawSignals()
+            self.plot_raw_signals()
             return
         if int(self.comboBox.currentIndex()) == 1:
             self.plotProcessedSignals()
