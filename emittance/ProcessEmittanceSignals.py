@@ -248,13 +248,17 @@ class DesignerMainWindow(QMainWindow):
         # fill listWidget
         self.listWidget.addItems(names)
 
-    def plot_signal(self, y, x=None, xlabel=''):
+    def plot_signal(self, x, y, index):
         axes = self.mplWidget.canvas.ax
-        if x is None:
-            x = self.iy
-            xlabel = 'Index'
-        axes.plot(x, y)
-        axes.set_xlabel(xlabel)
+        regions = find_regions(index)
+        line = None
+        for reg in regions:
+            ind = np.arange(reg[0],reg[1])
+            if line is None:
+                line = axes.plot(x[ind], y[ind])
+            else:
+                cl = line[0].get_color()
+                line = axes.plot(x[ind], y[ind], color=cl)
         self.mplWidget.canvas.draw()
 
 
@@ -289,6 +293,8 @@ class DesignerMainWindow(QMainWindow):
             pass
         # default parameters
         params = [{'smooth': ns, 'offset': 0.0, 'zero': np.zeros(ny), 'scale': 1.95} for i in range(nx)]
+
+        self.paramsAuto = params
         # smooth data array
         self.logger.info('Smoothing data ...')
         for i in range(nx):
@@ -358,29 +364,27 @@ class DesignerMainWindow(QMainWindow):
             y1 = data[i, :].copy()
             y2 = data[i1, :].copy()
             # subtract offset and zero
-            offset1 = params[i]['offset']
-            zero1 = params[i]['zero']
+            o1 = params[i]['offset']
+            z1 = params[i]['zero']
             #y1 = y1 - offset1 - zero1
-            offset2 = params[i1]['offset']
-            zero2 = params[i1]['zero']
-            #y2 = y2 - offset2 - zero2
+            o2 = params[i1]['offset']
+            z2 = params[i1]['zero']
+            # remove offsets
+            y1 = y1 - o1
+            y2 = y2 - o2
             # double smooth because zero line is slow
             smooth(y1, params[i]['smooth'] * 2)
             smooth(y2, params[i1]['smooth'] * 2)
             # offsets calculated from upper 10%
-            y1min = np.min(y1)
-            y1max = np.max(y1)
-            dy1 = y1max - y1min
             y2min = np.min(y2)
             y2max = np.max(y2)
-            dy2 = y2max - y2min
             # zero line = where 2 signals are almost equal
             dy = np.abs(y1 - y2)
             mask = dy < (0.05 * dy.ptp())
             index = np.where(mask)[0]
             # plot interm results
             axes.plot(ix, dy)
-            axes.plot(ix[index], dy[index])
+            self.plot_signal(ix, dy, index)
             axes.set_title('Zero line %s and %s' % (i, i1))
             axes.set_xlabel('Index')
             axes.set_ylabel('Voltage, V')
@@ -389,7 +393,7 @@ class DesignerMainWindow(QMainWindow):
             index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
             if len(index) <= 0:
                 index = np.where(mask)[0]
-            axes.plot(ix[index], dy[index])
+            self.plot_signal(ix, dy, index)
             self.mplWidget.canvas.draw()
             # new offset
             if len(index) > 0:
@@ -399,23 +403,21 @@ class DesignerMainWindow(QMainWindow):
             self.logger.info('Offset for channel %d = %f' % (i1, offset))
             # shift y2 and offset2
             y2 = y2 - offset
-            offset2 = offset2 + offset
+            o2 = o2 + offset
             # save processed offset
-            params[i1]['offset'] = offset2
+            params[i1]['offset'] = o2
             # index with new offset
             # self.logger.info('4% index with corrected offset')
             dy = np.abs(y1 - y2)
             mask = dy < (0.05 * dy.ptp())
             index = np.where(mask)[0]
-            # self.logger.info(findRegionsText(index))
             # filter signal intersection
             regions = find_regions(index, 50, 300, 100, 100)
             index = restoreFromRegions(regions, 0, 150, length=ny)
-            # self.logger.info(findRegionsText(index))
             axes.plot(ix, y1)
             axes.plot(ix, y2)
-            axes.plot(ix[index], y1[index])
-            axes.plot(ix[index], y2[index])
+            self.plot_signal(ix, y1, index)
+            self.plot_signal(ix, y2, index)
             self.mplWidget.canvas.draw()
             # update zero line for all channels
             for j in range(1, nx):
@@ -425,9 +427,12 @@ class DesignerMainWindow(QMainWindow):
                     w = 10.0
                 zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
                 weight[j, index] += w
-                #self.paramsAuto[i]['zero'] = zero[i]
-            # self.mplWidget.canvas.ax.clear()
-            # self.mplWidget.canvas.draw()
+                self.paramsAuto[j]['zero'] = zero[j]
+            axes.plot(ix, y1)
+            axes.plot(ix, y2)
+            self.plot_signal(ix, zero[i], index)
+            self.plot_signal(ix, zero[i1], index)
+            self.mplWidget.canvas.draw()
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
