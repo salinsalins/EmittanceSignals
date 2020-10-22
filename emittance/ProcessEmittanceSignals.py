@@ -347,13 +347,14 @@ class DesignerMainWindow(QMainWindow):
         # axes.set_ylabel('Voltage, V')
         # self.mplWidget.canvas.draw()
 
+        k = [(i, i+1) for i in range(sm_index[1] + 1, nx-1)] + [(i, i-1) for i in range(sm_index[1] + 1, 2, -1)]
+
         # process other channels
-        for i in sm_index[1:]+1:
-            self.logger.info('Processing channel %d', i)
+        for j in k:
+            i = j[0]
+            i1 = j[1]
+            self.logger.info('Processing channel %d -> %d', i, i1)
             # select adjacent channel
-            i1 = i + 1
-            if i1 >= nx:
-                i1 = i - 1
             y1 = data[i, :].copy()
             y2 = data[i1, :].copy()
             # subtract offset and zero
@@ -391,10 +392,11 @@ class DesignerMainWindow(QMainWindow):
             axes.plot(ix[index], dy[index])
             self.mplWidget.canvas.draw()
             # new offset
-            offset = np.average(y2[index] - y1[index])
-            if np.isnan(offset):
+            if len(index) > 0:
+                offset = np.average(y2[index] - y1[index])
+            else:
                 offset = 0.0
-            self.logger.info('Offset for channel %d = %f' % ((i+1), offset))
+            self.logger.info('Offset for channel %d = %f' % (i1, offset))
             # shift y2 and offset2
             y2 = y2 - offset
             offset2 = offset2 + offset
