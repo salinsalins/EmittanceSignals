@@ -350,7 +350,7 @@ class DesignerMainWindow(QMainWindow):
 
         k = [(i, i+1) for i in range(sm_index[1] + 1, nx-1)] + [(i, i-1) for i in range(sm_index[1] + 1, 2, -1)]
 
-        # process other channels
+        # process zero line and offset
         for j in k:
             i = j[0]
             i1 = j[1]
@@ -374,9 +374,17 @@ class DesignerMainWindow(QMainWindow):
             y2min = np.min(y2)
             y2max = np.max(y2)
             # zero line = where 2 signals are almost equal
-            dy = np.abs(y1 - y2)
-            mask = dy < (0.05 * dy.ptp())
-            index = np.where(mask)[0]
+            frac = 0.05
+            flag = True
+            while flag and (frac < 0.9):
+                dy = np.abs(y1 - y2)
+                mask = dy < (frac * dy.ptp())
+                index = np.where(mask)[0]
+                if len(index) < (len(dy) / 10.0):
+                    frac *= 2.0
+                    self.logger.info('Threshold is doubled %s %s', len(index), frac)
+                else:
+                    flag = False
             # plot interm results
             axes.plot(ix, dy, label='dy')
             self.plot_signal(ix, dy, index, label='dy[index]')
@@ -389,7 +397,12 @@ class DesignerMainWindow(QMainWindow):
             index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
             if len(index) <= 0:
                 index = np.where(mask)[0]
-            self.plot_signal(ix, dy, index)
+            # filter signal intersection
+            regions = find_regions(index, 50, 300, 100, 100)
+            index1 = restoreFromRegions(regions, 0, 150, length=ny)
+            #
+            self.plot_signal(ix, dy, index1, label='dy[index1]')
+            axes.legend(loc='best')
             self.mplWidget.canvas.draw()
             # new offset
             if len(index) > 0:
@@ -410,10 +423,10 @@ class DesignerMainWindow(QMainWindow):
             # filter signal intersection
             regions = find_regions(index, 50, 300, 100, 100)
             index = restoreFromRegions(regions, 0, 150, length=ny)
-            axes.plot(ix, y1)
-            axes.plot(ix, y2)
-            self.plot_signal(ix, y1, index)
-            self.plot_signal(ix, y2, index)
+            axes.plot(ix, y1, label='y1')
+            axes.plot(ix, y2, label='y2')
+            self.plot_signal(ix, y1, index, label='y1[index]')
+            self.plot_signal(ix, y2, index, label='y2[index]')
             self.mplWidget.canvas.draw()
             # update zero line for all channels
             for j in range(1, nx):
@@ -428,13 +441,12 @@ class DesignerMainWindow(QMainWindow):
                     zero[j, index] = (zero[j, index] * weight[j, index] + (y1[index] + y2[index]) * (0.5 * w)) / (weight[j, index] + w)
                 weight[j, index] += w
                 self.paramsAuto[j]['zero'] = zero[j]
-            axes.plot(ix, y1)
-            axes.plot(ix, y2)
-            self.plot_signal(ix, zero[i], index)
-            self.plot_signal(ix, zero[i1], index)
+            #
+            self.plot_signal(ix, zero[i], index, label='z1[index]')
+            self.plot_signal(ix, zero[i1], index, label='z2[index]')
+            axes.legend(loc='best')
             self.mplWidget.canvas.draw()
-            if i == 14:
-                break
+            pass
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
