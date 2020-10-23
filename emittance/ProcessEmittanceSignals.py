@@ -12,21 +12,21 @@ import shelve
 import sys
 import time
 import json
+import logging
 
 from emittance.findRegions import find_regions as find_regions
 from emittance.findRegions import restoreFromRegions as restoreFromRegions
 from emittance.smooth import smooth
 from emittance.readTekFiles import readTekFiles
-import logging
 
-from PyQt5.QtWidgets import QMainWindow  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtWidgets import QApplication  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtWidgets import qApp  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtWidgets import QFileDialog  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtWidgets import QTableWidgetItem  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtWidgets import QMessageBox  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5 import uic  # @UnresolvedImport @UnusedImport @Reimport
-from PyQt5.QtCore import QPoint, QSize  # @UnresolvedImport @UnusedImport @Reimport
+from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import qApp
+from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5 import uic
+from PyQt5.QtCore import QPoint, QSize
 
 import numpy as np
 from scipy.integrate import trapz
@@ -36,11 +36,10 @@ import matplotlib.pyplot as plt
 
 _progName = 'Emittance'
 _progVersion = '_8_3'
-_settingsFile = _progName + '.json'
+_settings_file_name = _progName + '.json'
 _initScript = _progName + '_init.py'
 _logFile = _progName + '.log'
 _dataFile = _progName + '.dat'
-
 
 # logger = logging.getLogger(__name__)
 # logger.setLevel(logging.INFO)
@@ -53,6 +52,7 @@ _dataFile = _progName + '.dat'
 # file_handler.setFormatter(formatter)
 # logger.addHandler(console_handler)
 # logger.addHandler(file_handler)
+
 
 class TextEditHandler(logging.Handler):
     def __init__(self, wdgt=None):
@@ -72,7 +72,6 @@ class DesignerMainWindow(QMainWindow):
         # initialization of the superclass
         super(DesignerMainWindow, self).__init__(parent)
         # load the GUI 
-        # uic.loadUi(r'.\emittance\Emittance1.ui', self)
         uic.loadUi(r'.\Emittance1.ui', self)
         # connect the signals with the slots
         self.pushButton_2.clicked.connect(self.selectFolder)
@@ -91,6 +90,7 @@ class DesignerMainWindow(QMainWindow):
         # disable text wrapping in log window
         self.plainTextEdit.setLineWrapMode(0)
         # variables definition
+        self.conf = {}
         self.folderName = ''
         self.fleNames = []
         self.nx = 0
@@ -118,13 +118,12 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info(_progName + _progVersion + ' started')
 
         # restore global settings from default location
-        self.restoreSettings()
+        self.restore_settings()
 
         # read data files
         self.parseFolder()
 
         # restore local settings
-        # self.restoreSettings(folder = self.folderName)
         if not self.restoreData(folder=self.folderName):
             self.processFolder()
 
@@ -418,11 +417,15 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             # update zero line for all channels
             for j in range(1, nx):
-                if j != i and j != i1:
-                    w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
-                else:
+                if j == i:
                     w = 10.0
-                zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
+                    zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
+                elif j == i1:
+                    w = 10.0
+                    zero[j, index] = (zero[j, index] * weight[j, index] + y2[index] * w) / (weight[j, index] + w)
+                else:
+                    w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
+                    zero[j, index] = (zero[j, index] * weight[j, index] + (y1[index] + y2[index]) * (0.5 * w)) / (weight[j, index] + w)
                 weight[j, index] += w
                 self.paramsAuto[j]['zero'] = zero[j]
             axes.plot(ix, y1)
@@ -430,12 +433,13 @@ class DesignerMainWindow(QMainWindow):
             self.plot_signal(ix, zero[i], index)
             self.plot_signal(ix, zero[i1], index)
             self.mplWidget.canvas.draw()
-            if i == 13:
+            if i == 14:
                 break
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
 
+        return
         x = sv_x
         # determine signal area
         self.logger.info('Processing signals ...')
@@ -1010,7 +1014,7 @@ class DesignerMainWindow(QMainWindow):
                 self.mplWidget.canvas.draw()
                 return
         except:
-            self.printExceptionInfo()
+            self.print_exception_info()
 
     def read_parameter(self, row, name, default=None, dtype=None, info=False, select=''):
         if name == 'zero':
@@ -1170,7 +1174,7 @@ class DesignerMainWindow(QMainWindow):
         axes.plot(*args, **kwargs)
         # zoplot()
         # xlim = axes.get_xlim()
-        # axes.plot(xlim, [0.0,0.0], color='k')
+        # axes.plot(xlim, [0.0, 0.0], color='k')
         # axes.set_xlim(xlim)
         axes.grid(True)
         axes.legend(loc='best')
@@ -1405,7 +1409,7 @@ class DesignerMainWindow(QMainWindow):
                 self.profileint[i - 1] = -1.0 * trapz(yu, xu)  # [A]
                 # self.logger.info(i, self.profileint[i-1])
             except:
-                self.printExceptionInfo()
+                self.print_exception_info()
         # sort in x0 increasing order
         ix0 = np.argsort(x0)
         x0s = x0[ix0]
@@ -1992,7 +1996,7 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             return
 
-    def saveSettings(self, folder='', fileName=_settingsFile):
+    def saveSettings(self, folder='', fileName=_settings_file_name):
         fullName = os.path.join(str(folder), fileName)
         try:
             # save window size and position
@@ -2014,7 +2018,7 @@ class DesignerMainWindow(QMainWindow):
             self.logger.info('Configuration saved to %s' % fullName)
             return True
         except:
-            self.printExceptionInfo()
+            self.print_exception_info()
             self.logger.info('Configuration save error to %s' % fullName)
             return False
 
@@ -2027,15 +2031,12 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Processed data saved to %s' % fullName)
         return True
 
-    def restoreSettings(self, folder='', fileName=_settingsFile):
-        try:
-            self.execInitScript()
-        except:
-            pass
+    def restore_settings(self, folder='', file_name=_settings_file_name):
+        self.execInitScript()
         self.conf = {}
-        fullName = os.path.join(str(folder), fileName)
+        full_file_name = os.path.join(str(folder), file_name)
         try:
-            with open(fullName, 'r', encoding='utf-8') as configfile:
+            with open(full_file_name, 'r', encoding='utf-8') as configfile:
                 s = configfile.read()
                 self.conf = json.loads(s)
             # restore window size and position
@@ -2049,22 +2050,21 @@ class DesignerMainWindow(QMainWindow):
                 self.spinBox.setValue(int(self.conf['smooth']))
             if 'scan' in self.conf:
                 self.spinBox_2.setValue(int(self.conf['scan']))
-            if 'result' in self.conf:
-                self.comboBox.setCurrentIndex(int(self.conf['result']))
-            # read items from history  
+            # read items from history
             if 'history' in self.conf:
                 self.comboBox_2.currentIndexChanged.disconnect(self.selectionChanged)
                 self.comboBox_2.clear()
                 self.comboBox_2.addItems(self.conf['history'])
                 self.comboBox_2.currentIndexChanged.connect(self.selectionChanged)
-
-            # print OK message and exit    
-            self.logger.info('Configuration restored from %s' % fullName)
+            # set history selection
+            if 'result' in self.conf:
+                self.comboBox.setCurrentIndex(int(self.conf['result']))
+            #
+            self.logger.info('Configuration restored from %s' % full_file_name)
             return True
         except:
-            # print error info    
-            self.printExceptionInfo()
-            self.logger.info('Configuration restore error from %s' % fullName)
+            self.logger.warning('Configuration restore error from %s' % full_file_name)
+            self.print_exception_info()
             return False
 
     def restoreData(self, folder='', fileName=_dataFile):
@@ -2085,7 +2085,7 @@ class DesignerMainWindow(QMainWindow):
             except:
                 pass
             # print error info    
-            self.printExceptionInfo()
+            self.print_exception_info()
             self.logger.info('Data file %s restore error.' % fullName)
             return False
 
@@ -2100,9 +2100,10 @@ class DesignerMainWindow(QMainWindow):
             self.logger.info('Init script %s error.', fullName)
             self.logger.debug('Exception info', exc_info=True)
 
-    def printExceptionInfo(self):
+    def print_exception_info(self):
         (tp, value) = sys.exc_info()[:2]
         self.logger.info('Exception %s %s' % (str(tp), str(value)))
+        self.logger.debug('Exception', exc_info=True)
 
 
 if __name__ == '__main__':
