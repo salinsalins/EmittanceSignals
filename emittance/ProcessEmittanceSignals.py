@@ -391,29 +391,25 @@ class DesignerMainWindow(QMainWindow):
             if len(index) <= 0:
                 index = np.where(mask)[0]
             #
-            # self.plot_signal(ix, dy, index, label='dy[index]')
-            # axes.legend(loc='best')
-            # self.mplWidget.canvas.draw()
             # new offset
             if len(index) > 0:
                 offset = np.average(y2[index] - y1[index])
             else:
                 offset = 0.0
             self.logger.info('Offset for channel %d = %f' % (i1, offset))
-            # axes.plot(ix, y1, label='y1')
-            # axes.plot(ix, y2, label='y2')
-            # self.plot_signal(ix, y1, index, label='y1[index]')
-            # self.plot_signal(ix, y2, index, label='y2[index]')
-            # axes.legend(loc='best')
-            # self.mplWidget.canvas.draw()
             # shift y1 y2 and set o2
             o2 = o1 + offset
             y1 = y1 - o1
             y2 = y2 - o2
+            axes.plot(ix, y1, label='y1')
+            axes.plot(ix, y2, label='y2')
+            # self.plot_signal(ix, y1, index, label='y1[index]')
+            # self.plot_signal(ix, y2, index, label='y2[index]')
+            axes.legend(loc='best')
+            self.mplWidget.canvas.draw()
             # save processed offset
             params[i1]['offset'] = o2
             # index with new offset
-            # self.logger.info('4% index with corrected offset')
             dy = np.abs(y1 - y2)
             mask = dy < (0.05 * dy.ptp())
             index = np.where(mask)[0]
