@@ -379,13 +379,13 @@ class DesignerMainWindow(QMainWindow):
                 else:
                     flag = False
             # plot interm results
-            axes.plot(ix, dy, label='dy')
-            self.plot_signal(ix, dy, index, label='dy[index]')
-            axes.set_title('Zero line %s and %s' % (i, i1))
-            axes.set_xlabel('Index')
-            axes.set_ylabel('Voltage, V')
-            axes.legend(loc='best')
-            self.mplWidget.canvas.draw()
+            # axes.plot(ix, dy, label='dy')
+            # self.plot_signal(ix, dy, index, label='dy[index]')
+            # axes.set_title('Zero line %s and %s' % (i, i1))
+            # axes.set_xlabel('Index')
+            # axes.set_ylabel('Voltage, V')
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
             # filter signal intersection regions
             index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
             if len(index) <= 0:
@@ -401,12 +401,12 @@ class DesignerMainWindow(QMainWindow):
             o2 = o1 + offset
             y1 = y1 - o1
             y2 = y2 - o2
-            axes.plot(ix, y1, label='y1')
-            axes.plot(ix, y2, label='y2')
+            # axes.plot(ix, y1, label='y1')
+            # axes.plot(ix, y2, label='y2')
             # self.plot_signal(ix, y1, index, label='y1[index]')
             # self.plot_signal(ix, y2, index, label='y2[index]')
-            axes.legend(loc='best')
-            self.mplWidget.canvas.draw()
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
             # save processed offset
             params[i1]['offset'] = o2
             # index with new offset
@@ -430,17 +430,27 @@ class DesignerMainWindow(QMainWindow):
                 weight[j, index] += w
                 self.paramsAuto[j]['zero'] = zero[j]
             #
-            self.plot_signal(ix, zero[i], index, label='z1[index]')
-            self.plot_signal(ix, zero[i1], index, label='z2[index]')
-            axes.legend(loc='best')
-            self.mplWidget.canvas.draw()
+            # self.plot_signal(ix, zero[i], index, label='z1[index]')
+            # self.plot_signal(ix, zero[i1], index, label='z2[index]')
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
             # self.plot_raw_signals([18])
             pass
+        # remove tips
+        n = len(weight[0, :])
+        for i in range(1, nx):
+            mask = weight[i, :] <= 0.0
+            index = np.where(mask)[0]
+            index1 = np.where(~mask)[0]
+            for j in index:
+                if j < n/2:
+                    zero[i, j] = zero[i, index1[0]]
+                else:
+                    zero[i, j] = zero[i, index1[-1]]
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
 
-        return
         x = sv_x
         # determine signal area
         self.logger.info('Processing signals ...')
