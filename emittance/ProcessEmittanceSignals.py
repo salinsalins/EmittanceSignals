@@ -360,25 +360,18 @@ class DesignerMainWindow(QMainWindow):
             y2 = data[i1, :].copy()
             # subtract offset and zero
             o1 = params[i]['offset']
-            z1 = params[i]['zero']
             #y1 = y1 - offset1 - zero1
             o2 = params[i1]['offset']
-            z2 = params[i1]['zero']
-            # remove offsets
-            y1 = y1 - o1
-            y2 = y2 - o2
             # double smooth because zero line is slow
             smooth(y1, params[i]['smooth'] * 2)
             smooth(y2, params[i1]['smooth'] * 2)
-            # offsets calculated from upper 10%
-            y2min = np.min(y2)
-            y2max = np.max(y2)
             # zero line = where 2 signals are almost equal
             frac = 0.05
             flag = True
+            dy = np.abs(y1 - y2)
+            dyptp = dy.ptp()
             while flag and (frac < 0.9):
-                dy = np.abs(y1 - y2)
-                mask = dy < (frac * dy.ptp())
+                mask = dy < (frac * dyptp)
                 index = np.where(mask)[0]
                 if len(index) < (len(dy) / 10.0):
                     frac *= 2.0
@@ -397,22 +390,26 @@ class DesignerMainWindow(QMainWindow):
             index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
             if len(index) <= 0:
                 index = np.where(mask)[0]
-            # filter signal intersection
-            regions = find_regions(index, 50, 300, 100, 100)
-            index1 = restoreFromRegions(regions, 0, 150, length=ny)
             #
-            self.plot_signal(ix, dy, index1, label='dy[index1]')
-            axes.legend(loc='best')
-            self.mplWidget.canvas.draw()
+            # self.plot_signal(ix, dy, index, label='dy[index]')
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
             # new offset
             if len(index) > 0:
                 offset = np.average(y2[index] - y1[index])
             else:
                 offset = 0.0
             self.logger.info('Offset for channel %d = %f' % (i1, offset))
-            # shift y2 and offset2
-            y2 = y2 - offset
-            o2 = o2 + offset
+            # axes.plot(ix, y1, label='y1')
+            # axes.plot(ix, y2, label='y2')
+            # self.plot_signal(ix, y1, index, label='y1[index]')
+            # self.plot_signal(ix, y2, index, label='y2[index]')
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
+            # shift y1 y2 and set o2
+            o2 = o1 + offset
+            y1 = y1 - o1
+            y2 = y2 - o2
             # save processed offset
             params[i1]['offset'] = o2
             # index with new offset
@@ -423,11 +420,6 @@ class DesignerMainWindow(QMainWindow):
             # filter signal intersection
             regions = find_regions(index, 50, 300, 100, 100)
             index = restoreFromRegions(regions, 0, 150, length=ny)
-            axes.plot(ix, y1, label='y1')
-            axes.plot(ix, y2, label='y2')
-            self.plot_signal(ix, y1, index, label='y1[index]')
-            self.plot_signal(ix, y2, index, label='y2[index]')
-            self.mplWidget.canvas.draw()
             # update zero line for all channels
             for j in range(1, nx):
                 if j == i:
@@ -446,6 +438,7 @@ class DesignerMainWindow(QMainWindow):
             self.plot_signal(ix, zero[i1], index, label='z2[index]')
             axes.legend(loc='best')
             self.mplWidget.canvas.draw()
+            # self.plot_raw_signals([18])
             pass
         # save processed zero line
         for i in range(nx):
@@ -1222,10 +1215,11 @@ class DesignerMainWindow(QMainWindow):
             title = 'Index'
         return x, title
 
-    def plot_raw_signals(self):
+    def plot_raw_signals(self, indexes=()):
         if self.data is None:
             return
-        indexes = self.listWidget.selectedIndexes()
+        if len(indexes) <= 0:
+            indexes = self.listWidget.selectedIndexes()
         if len(indexes) <= 0:
             return
         self.execInitScript()
@@ -1233,7 +1227,10 @@ class DesignerMainWindow(QMainWindow):
         axes = self.mplWidget.canvas.ax
         x, xTitle = self.get_x()
         for i in indexes:
-            row = i.row()
+            if hasattr(i, 'row'):
+                row = i.row()
+            else:
+                row = i
             y = self.data[row, :].copy() - self.read_parameter(row, 'offset')
             ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
             smooth(y, ns)
