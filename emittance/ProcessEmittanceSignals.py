@@ -258,6 +258,7 @@ class DesignerMainWindow(QMainWindow):
         self.mplWidget.canvas.draw()
 
     def processFolder(self, *args, **kwargs):
+        axes = self.mplWidget.canvas.ax
         folder = self.folderName
         self.logger.info('Processing folder %s', folder)
         # execute init script
@@ -275,10 +276,7 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('%s data files in %s', nx, folder)
         # size of Y data
         ny = len(data[0])
-        # define arrays
-        zero = np.zeros((nx, ny), dtype=np.float64)
-        weight = np.zeros((nx, ny), dtype=np.float64)
-        # index array
+        # X index array
         ix = np.arange(ny)
         # smooth
         ns = 1
@@ -286,25 +284,33 @@ class DesignerMainWindow(QMainWindow):
             ns = int(self.spinBox.value())
         except:
             pass
+        
         # default parameters
+        self.logger.info('Set default parameters ...')
         params = [{'smooth': ns, 'offset': 0.0, 'zero': np.zeros(ny), 'scale': 1.95} for i in range(nx)]
-
+        params[0]['R'] = 2.0e5  # Ohm   Resistor for scanner FC
+        params[0]['d1'] = 0.5  # mm    Scanner analyzer hole diameter
+        params[0]['d2'] = 0.5  # mm    Scanner FC slit width
+        params[0]['l1'] = 213.0  # mm    Distance from emission hole to scanner analyzer hole
+        params[0]['l2'] = 195.0  # mm    Scanner base
         self.paramsAuto = params
-        # smooth data array
+
+        # smooth data
         self.logger.info('Smoothing data ...')
         for i1 in range(nx):
             y = data[i1, :]
             smooth(y, params[i1]['smooth'])
             data[i1, :] = y
+
         # process scan voltage
         # channel 0 is by default scan voltage
-        sv_index = 0
+        sv_n = 0
         self.logger.info('Processing scan voltage ...')
-        sv_x = data[sv_index, :].copy()
+        sv_u = data[sv_n, :].copy()
         # additionally smooth x
-        smooth(sv_x, params[sv_index]['smooth'] * 2)
+        smooth(sv_u, params[sv_n]['smooth'] * 2)
         # find longest monotonic region of scan voltage
-        sv_xdiff = np.diff(sv_x)
+        sv_xdiff = np.diff(sv_u)
         sv_xdiff = np.append(sv_xdiff, sv_xdiff[-1])
         mask = sv_xdiff >= 0.0
         regions = find_regions(np.where(mask)[0])
@@ -318,19 +324,21 @@ class DesignerMainWindow(QMainWindow):
         for r in regions:
             if r[1] - r[0] >= xr[1] - xr[0]:
                 xr = r
-        xi = np.arange(xr[0], xr[1])
-        params[sv_index]['range'] = xr
+        sv_i = np.arange(xr[0], xr[1])
+        params[sv_n]['range'] = xr
         self.logger.info('Scan voltage region %s' % str(xr))
+        
         # auto process data for zero line and offset
         self.logger.info('Processing zero lines and offsets ...')
+        # define arrays
+        zero = np.zeros((nx, ny), dtype=np.float64)
+        weight = np.zeros((nx, ny), dtype=np.float64)
         # sort data to maximal signals
         smax = np.min(data[1:, :], 1)
         sm_index = smax.argsort()
-
-        # process zero line and offset
-        axes = self.mplWidget.canvas.ax
-        k = [(i, i+1) for i in range(sm_index[1] + 1, nx-1)] + [(i, i-1) for i in range(sm_index[1] + 1, 2, -1)]
-        for j1 in k:
+        # channel pairs for zero line calc
+        cp = [(i, i + 1) for i in range(sm_index[1] + 1, nx - 1)] + [(i, i - 1) for i in range(sm_index[1] + 1, 2, -1)]
+        for j1 in cp:
             i1 = j1[0]
             i2 = j1[1]
             self.logger.info('Processing channel %d -> %d', i1, i2)
@@ -358,13 +366,13 @@ class DesignerMainWindow(QMainWindow):
                 else:
                     flag = False
             # intermediate plot
-            axes.plot(ix, dy, label='dy')
-            self.plot_signal(ix, dy, index1, label='dy[index1]')
-            axes.set_title('Zero line %s and %s' % (i1, i2))
-            axes.set_xlabel('Index')
-            axes.set_ylabel('Voltage, V')
-            axes.legend(loc='best')
-            self.mplWidget.canvas.draw()
+            # axes.plot(ix, dy, label='dy')
+            # self.plot_signal(ix, dy, index1, label='dy[index1]')
+            # axes.set_title('Zero line %s and %s' % (i1, i2))
+            # axes.set_xlabel('Index')
+            # axes.set_ylabel('Voltage, V')
+            # axes.legend(loc='best')
+            # self.mplWidget.canvas.draw()
             # filter signal intersection regions
             index2 = restoreFromRegions(find_regions(index1, 50, 300, 100, 100, length=ny))
             if len(index2) <= 0:
@@ -379,7 +387,7 @@ class DesignerMainWindow(QMainWindow):
             y1 = y1 - o1
             y2 = y2 - o2
             # intermediate plot
-            self.plot_signal(ix, dy, index2, label='dy[index2]')
+            # self.plot_signal(ix, dy, index2, label='dy[index2]')
             # axes.plot(ix, y1, label='y1')
             # axes.plot(ix, y2, label='y2')
             # self.plot_signal(ix, y1, index2, label='y1[index2]')
@@ -419,8 +427,7 @@ class DesignerMainWindow(QMainWindow):
             # axes.legend(loc='best')
             # self.mplWidget.canvas.draw()
             #
-            pass
-            self.erasePicture()
+            # self.erasePicture()
             #
         # remove zero tips
         n = len(weight[0, :])
@@ -439,14 +446,14 @@ class DesignerMainWindow(QMainWindow):
             params[i]['zero'] = zero[i]
             self.paramsAuto[i]['zero'] = zero[i]
 
-        x = sv_x
-        # determine signal area
-        self.logger.info('Processing signals ...')
+        # determine ranges
+        self.logger.info('Processing ranges ...')
+        x = sv_u
         for i in range(1, nx):
             # self.logger.info('Channel %d'%i)
-            y0 = data[i, :].copy()[xi]
+            y0 = data[i, :].copy()[sv_i]
             smooth(y0, params[i]['smooth'])
-            z = zero[i].copy()[xi] + params[i1]['offset']
+            z = zero[i].copy()[sv_i] + params[i]['offset']
             smooth(z, params[i]['smooth'] * 2)
             y = y0 - z
             ymin = np.min(y)
@@ -457,12 +464,12 @@ class DesignerMainWindow(QMainWindow):
             ra = find_regions(index)
             params[i]['range'] = xr
             # determine scale
-            is1 = xi[0]
-            is2 = xi[-1]
+            is1 = sv_i[0]
+            is2 = sv_i[-1]
             if len(ra) >= 1:
-                is1 = np.argmin(y[ra[0][0]:ra[0][1]]) + ra[0][0] + xi[0]
+                is1 = np.argmin(y[ra[0][0]:ra[0][1]]) + ra[0][0] + sv_i[0]
             if len(ra) >= 2:
-                is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + xi[0]
+                is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + sv_i[0]
             params[i]['scale'] = 10.0 / (x[is2] - x[is1])  # [mm/Volt]
             if np.abs(x[is1]) < np.abs(x[is2]):
                 index = is1
@@ -471,10 +478,11 @@ class DesignerMainWindow(QMainWindow):
             params[i]['minindex'] = index
             params[i]['minvoltage'] = x[index]
             di = int(abs(is2 - is1) / 2.0)
-            ir1 = max([xi[0], index - di])
-            ir2 = min([xi[-1], index + di])
+            ir1 = max([sv_i[0], index - di])
+            ir2 = min([sv_i[-1], index + di])
             params[i]['range'] = [ir1, ir2]
-        # filter scales
+        
+        # calculate scales
         sc0 = np.array([params[i]['scale'] for i in range(1, nx)])
         sc = sc0.copy()
         asc = np.average(sc)
@@ -487,17 +495,9 @@ class DesignerMainWindow(QMainWindow):
             ssc = np.std(sc)
         for i in range(1, nx):
             params[i]['scale'] = sc[i - 1]
-            # save processed to member variable
+        
+        # save processed to member variable
         self.paramsAuto = params
-
-        # common parameters
-        self.logger.info('Set common parameters ...')
-        # Default parameters of measurements
-        params[0]['R'] = 2.0e5  # Ohm   Resistor for scanner FC
-        params[0]['d1'] = 0.5  # mm    Scanner analyzer hole diameter
-        params[0]['d2'] = 0.5  # mm    Scanner FC slit width
-        params[0]['l1'] = 213.0  # mm    Distance from emission hole to scanner analyzer hole
-        params[0]['l2'] = 195.0  # mm    Scanner base
 
         # X0 and ndh calculation
         l1 = self.read_parameter(0, "l1", 213.0, float)
@@ -540,8 +540,8 @@ class DesignerMainWindow(QMainWindow):
                 else:
                     h[i1] = h[i1 - 1] - 10.0
         x01 = x01 - np.average(x01)
-        k = int(np.argmin(np.abs(x01)))
-        h = h - h[k]
+        cp = int(np.argmin(np.abs(x01)))
+        h = h - h[cp]
         for i1 in range(1, nx):
             params[i1]['ndh'] = h[i1 - 1]
             s = self.read_parameter(i1, "scale", 1.7, float)
@@ -551,7 +551,8 @@ class DesignerMainWindow(QMainWindow):
             # self.logger.info('%3d'%i, end='  ')
             # self.logger.info('X0=%f mm ndh=%4.1f mm'%(params[i]['x0'],params[i]['ndh']), end='  ')
             # self.logger.info('X00=%f mm DX=%f mm'%(x00[i-1], dx[i-1]))
-        # self.logger.info calculated parameters
+        
+        # print calculated parameters
         self.logger.info('Calculated parameters:')
         s = ''
         for i1 in range(nx):
@@ -579,299 +580,6 @@ class DesignerMainWindow(QMainWindow):
             except:
                 pass
             self.logger.info(s)
-        # debug draw X0 calculation
-        # self.debugDraw([x01, nx, k])
-        # save processed to member variable
-        self.paramsAuto = params
-        self.logger.info('Auto parameters has been calculated')
-        self.saveData(folder=self.folderName)
-        return True
-
-    def processFolder1(self, folder=None):
-        folder = self.folderName
-        # execute init script
-        self.execInitScript()
-        # parse folder
-        self.parseFolder(folder)
-        # read data array
-        data = self.data
-        files = self.fileNames
-        # number of files
-        nx = len(files)
-        if nx <= 0:
-            return False
-        self.logger.info('Processing folder %s', folder)
-        # size of Y data
-        ny = len(data[0])
-        # define arrays
-        zero = np.zeros((nx, ny), dtype=np.float64)
-        weight = np.zeros((nx, ny), dtype=np.float64)
-        # index array
-        ix = np.arange(ny)
-        # smooth
-        ns = 1
-        try:
-            ns = int(self.spinBox.value())
-        except:
-            pass
-
-        # default parameters array
-        params = [{'smooth': ns, 'offset': 0.0, 'zero': np.zeros(ny), 'scale': 1.95} for i in range(nx)]
-        # smooth data array
-        self.logger.info('Smoothing data ...')
-        for i in range(nx):
-            y = data[i, :]
-            smooth(y, params[i]['smooth'])
-            data[i, :] = y
-
-        self.logger.info('Processing scan voltage ...')
-        # channel 0 is by default scan voltage 
-        x = data[0, :].copy()
-        # additionally smooth x 
-        smooth(x, params[0]['smooth'] * 2)
-        # find longest monotonic region of scan voltage
-        xdiff = np.diff(x)
-        xdiff = np.append(xdiff, xdiff[-1])
-        mask = xdiff >= 0.0
-        regions = find_regions(np.where(mask)[0])
-        # find longest region
-        xr = [0, 1]
-        for r in regions:
-            if r[1] - r[0] >= xr[1] - xr[0]:
-                xr = r
-        mask = xdiff <= 0.0
-        regions = find_regions(np.where(mask)[0])
-        for r in regions:
-            if r[1] - r[0] >= xr[1] - xr[0]:
-                xr = r
-        xi = np.arange(xr[0], xr[1])
-        params[0]['range'] = xr
-        self.logger.info('Scan voltage region %s' % str(xr))
-        # debug draw 8 Scan voltage region
-        # self.debugDraw([ix, x, ix[xi], x[xi]])
-
-        # auto process data for zero line and offset
-        self.logger.info('Processing zero lines and offsets ...')
-        for i in range(1, nx - 1):
-            # self.logger.info('Channel %d'%(i))
-            y1 = data[i, :].copy()
-            offset1 = params[i]['offset']
-            y1 = y1 - offset1
-            y2 = data[i + 1, :].copy()
-            offset2 = params[i + 1]['offset']
-            y2 = y2 - offset2
-            # double smooth because zero line is slow 
-            smooth(y1, params[i]['smooth'] * 2)
-            smooth(y2, params[i + 1]['smooth'] * 2)
-            # offsets calculated from upper 10%
-            y1min = np.min(y1)
-            y1max = np.max(y1)
-            dy1 = y1max - y1min
-            y2min = np.min(y2)
-            y2max = np.max(y2)
-            dy2 = y2max - y2min
-            dy = max([dy1, dy2])
-            i1 = np.where(y1 > (y1max - 0.1 * dy))[0]
-            o1 = np.average(y1[i1])
-            # self.logger.info('Offset 1 %f'%o1)
-            i2 = np.where(y2 > (y2max - 0.1 * dy))[0]
-            o2 = np.average(y2[i2])
-            # self.logger.info('Offset 2 %f'%o2)
-            # debug draw 9 Offset calculation
-            self.debugDraw([i, ix, y1, o1, y2, o2, i1, i2])
-            # correct y2 and offset2 for calculated offsets
-            y2 = y2 - o2 + o1
-            offset2 = offset2 + o2 - o1
-            # zero line = where 2 signals are almost equal
-            mask = np.abs(y1 - y2) < 0.05 * dy1
-            index = np.where(mask)[0]
-            # filter signal intersection regions
-            index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
-            if len(index) <= 0:
-                index = np.where(mask)[0]
-            # new offset
-            offset = np.average(y2[index] - y1[index])
-            # self.logger.info('Offset for channel %d = %f'%((i+1), offset))
-            # shift y2 and offset2
-            y2 = y2 - offset
-            offset2 = offset2 + offset
-            # save processed offset
-            params[i + 1]['offset'] = offset2
-            # index with new offset
-            # self.logger.info('4% index with corrected offset')
-            mask = np.abs(y1 - y2) < 0.04 * dy1
-            index = np.where(mask)[0]
-            # self.logger.info(findRegionsText(index))
-            # filter signal intersection
-            regions = find_regions(index, 50)
-            index = restoreFromRegions(regions, 0, 150, length=ny)
-            # self.logger.info(findRegionsText(index))
-            # choose largest values
-            mask[:] = False
-            mask[index] = True
-            mask3 = np.logical_and(mask, y1 >= y2)
-            index3 = np.where(mask3)[0]
-            # update zero line for all channels
-            for j in range(1, nx):
-                w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
-                zero[j, index3] = (zero[j, index3] * weight[j, index3] + y1[index3] * w) / (weight[j, index3] + w)
-                weight[j, index3] += w
-            mask4 = np.logical_and(mask, y1 <= y2)
-            index4 = np.where(mask4)[0]
-            # update zero line for all channels
-            for j in range(1, nx):
-                w = 1.0 / ((abs(i + 1 - j)) ** 2 + 1.0)
-                zero[j, index4] = (zero[j, index4] * weight[j, index4] + y2[index4] * w) / (weight[j, index4] + w)
-                weight[j, index4] += w
-            if i == 13:
-                break
-        # save processed zero line
-        for i in range(nx):
-            params[i]['zero'] = zero[i]
-
-        # determine signal area
-        self.logger.info('Processing signals ...')
-        for i in range(1, nx):
-            # self.logger.info('Channel %d'%i)
-            y0 = data[i, :].copy()[xi]
-            smooth(y0, params[i]['smooth'])
-            z = zero[i].copy()[xi] + params[i]['offset']
-            smooth(z, params[i]['smooth'] * 2)
-            y = y0 - z
-            ymin = np.min(y)
-            ymax = np.max(y)
-            dy = ymax - ymin
-            mask = y < (ymax - 0.6 * dy)
-            index = np.where(mask)[0]
-            ra = find_regions(index)
-            params[i]['range'] = xr
-            # determine scale
-            is1 = xi[0]
-            is2 = xi[-1]
-            if len(ra) >= 1:
-                is1 = np.argmin(y[ra[0][0]:ra[0][1]]) + ra[0][0] + xi[0]
-            if len(ra) >= 2:
-                is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + xi[0]
-            params[i]['scale'] = 10.0 / (x[is2] - x[is1])  # [mm/Volt]
-            if np.abs(x[is1]) < np.abs(x[is2]):
-                index = is1
-            else:
-                index = is2
-            params[i]['minindex'] = index
-            params[i]['minvoltage'] = x[index]
-            di = int(abs(is2 - is1) / 2.0)
-            ir1 = max([xi[0], index - di])
-            ir2 = min([xi[-1], index + di])
-            params[i]['range'] = [ir1, ir2]
-            # debug draw 11 Range and scale calculation
-            self.debugDraw([i, xi, y, ix[ir1:ir2], y[ir1 - xi[0]:ir2 - xi[0]], is1, is2])
-        # filter scales
-        sc0 = np.array([params[i]['scale'] for i in range(1, nx)])
-        sc = sc0.copy()
-        asc = np.average(sc)
-        ssc = np.std(sc)
-        while ssc > 0.3 * np.abs(asc):
-            index1 = np.where(abs(sc - asc) <= 2.0 * ssc)[0]
-            index2 = np.where(abs(sc - asc) > 2.0 * ssc)[0]
-            sc[index2] = np.average(sc[index1])
-            asc = np.average(sc)
-            ssc = np.std(sc)
-        for i in range(1, nx):
-            params[i]['scale'] = sc[i - 1]
-            # save processed to member variable
-        self.paramsAuto = params
-
-        # common parameters
-        self.logger.info('Set common parameters ...')
-        # Default parameters of measurements
-        params[0]['R'] = 2.0e5  # Ohm   Resistor for scanner FC
-        params[0]['d1'] = 0.5  # mm    Scanner analyzer hole diameter
-        params[0]['d2'] = 0.5  # mm    Scanner FC slit width
-        params[0]['l1'] = 213.0  # mm    Distance from emission hole to scanner analyzer hole
-        params[0]['l2'] = 195.0  # mm    Scanner base
-
-        # X0 and ndh calculation
-        l1 = self.read_parameter(0, "l1", 213.0, float)
-        l2 = self.read_parameter(0, "l2", 195.0, float)
-        x00 = np.zeros(nx - 1)
-        for i in range(1, nx):
-            s = self.read_parameter(i, "scale", 2.0, float)
-            u = self.read_parameter(i, "minvoltage", 0.0, float)
-            x00[i - 1] = -s * u * l1 / l2
-            # self.logger.info('%3d N=%d Umin=%f scale=%f X00=%f'%(i, j, u, s, x00[i-1]))
-        npt = 0
-        sp = 0.0
-        nmt = 0
-        sm = 0.0
-        dx = x00.copy() * 0.0
-        # self.logger.info('%3d X00=%f DX=%f'%(0, x00[0], 0.0))
-        for i in range(1, nx - 1):
-            dx[i] = x00[i] - x00[i - 1]
-            if dx[i] > 0.0:
-                npt += 1
-                sp += dx[i]
-            if dx[i] < 0.0:
-                nmt += 1
-                sm += dx[i]
-            # self.logger.info('%3d X00=%f DX=%f'%(i, x00[i], dx[i]))
-        # self.logger.info('npt=%d %f nmt=%d %f %f'%(npt,sp/npt,nmt,sm/nmt,sp/npt-l1/l2*10.))
-        x01 = x00.copy()
-        h = x00.copy() * 0.0
-        for i in range(1, nx - 1):
-            if npt > nmt:
-                x01[i] = x01[i - 1] + sp / npt
-                if dx[i] > 0.0:
-                    h[i] = h[i - 1]
-                else:
-                    h[i] = h[i - 1] + 10.0
-            else:
-                x01[i] = x01[i - 1] + sm / nmt
-                if dx[i] < 0.0:
-                    h[i] = h[i - 1]
-                else:
-                    h[i] = h[i - 1] - 10.0
-        x01 = x01 - np.average(x01)
-        k = int(np.argmin(np.abs(x01)))
-        h = h - h[k]
-        for i in range(1, nx):
-            params[i]['ndh'] = h[i - 1]
-            s = self.read_parameter(i, "scale", 1.7, float)
-            u = self.read_parameter(i, "minvoltage", 0.0, float)
-            x01[i - 1] = (h[i - 1] - s * u) * l1 / l2
-            params[i]['x0'] = x01[i - 1]
-            # self.logger.info('%3d'%i, end='  ')
-            # self.logger.info('X0=%f mm ndh=%4.1f mm'%(params[i]['x0'],params[i]['ndh']), end='  ')
-            # self.logger.info('X00=%f mm DX=%f mm'%(x00[i-1], dx[i-1]))
-        # self.logger.info calculated parameters
-        self.logger.info('Calculated parameters:')
-        s = ''
-        for i in range(nx):
-            try:
-                s = 'Chan.%3d ' % i
-                s = s + 'range=%s; ' % str(params[i]['range'])
-                s = s + 'offset=%f V; ' % params[i]['offset']
-                s = s + 'scale=%6.2f mm/V; ' % params[i]['scale']
-                s = s + 'MinI=%4d; Umin=%6.2f V; ' % (params[i]['minindex'], params[i]['minvoltage'])
-                s = s + 'x0=%5.1f mm; ndh=%5.1f mm' % (params[i]['x0'], params[i]['ndh'])
-            except:
-                pass
-            self.logger.info(s)
-        self.logger.info('Actual parameters:')
-        for i in range(nx):
-            try:
-                s = 'Chan.%3d ' % i
-                s = s + 'range=%s; ' % str(self.read_parameter(i, "range"))
-                s = s + 'offset=%f V; ' % self.read_parameter(i, "offset")
-                s = s + 'scale=%6.2f mm/V; ' % self.read_parameter(i, "scale")
-                s = s + 'MinI=%4d; ' % (self.read_parameter(i, "minindex"))
-                s = s + 'Umin=%6.2f V; ' % (self.read_parameter(i, "minvoltage"))
-                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i, "x0"))
-                s = s + 'ndh=%5.1f mm' % (self.read_parameter(i, "ndh"))
-            except:
-                pass
-            self.logger.info(s)
-        # debug draw X0 calculation
-        self.debugDraw([x01, nx, k])
         # save processed to member variable
         self.paramsAuto = params
         self.logger.info('Auto parameters has been calculated')
