@@ -292,10 +292,10 @@ class DesignerMainWindow(QMainWindow):
         self.paramsAuto = params
         # smooth data array
         self.logger.info('Smoothing data ...')
-        for i in range(nx):
-            y = data[i, :]
-            smooth(y, params[i]['smooth'])
-            data[i, :] = y
+        for i1 in range(nx):
+            y = data[i1, :]
+            smooth(y, params[i1]['smooth'])
+            data[i1, :] = y
         # process scan voltage
         # channel 0 is by default scan voltage
         sv_index = 0
@@ -326,114 +326,103 @@ class DesignerMainWindow(QMainWindow):
         # sort data to maximal signals
         smax = np.min(data[1:, :], 1)
         sm_index = smax.argsort()
-        # use the largest channel as reference
-        i = sm_index[0]
-        y = data[i, :].copy()
-        offset = params[i]['offset']
-        z = params[i]['zero']
-        smooth(y, params[i]['smooth'] * 2)
-        y = y - offset - z
-        ymax = np.max(y)
-        #z += ymax
-        #params[i]['zero'] = z
-        #params[i]['offset'] = ymax
-        axes = self.mplWidget.canvas.ax
-        # axes.plot(ix, y)
-        # axes.plot(ix, z)
-        # axes.set_title('Largest signal jet %s' % i)
-        # axes.set_xlabel('n, Index')
-        # axes.set_ylabel('Voltage, V')
-        # self.mplWidget.canvas.draw()
-
-        k = [(i, i+1) for i in range(sm_index[1] + 1, nx-1)] + [(i, i-1) for i in range(sm_index[1] + 1, 2, -1)]
 
         # process zero line and offset
-        for j in k:
-            i = j[0]
-            i1 = j[1]
-            self.logger.info('Processing channel %d -> %d', i, i1)
+        axes = self.mplWidget.canvas.ax
+        k = [(i, i+1) for i in range(sm_index[1] + 1, nx-1)] + [(i, i-1) for i in range(sm_index[1] + 1, 2, -1)]
+        for j1 in k:
+            i1 = j1[0]
+            i2 = j1[1]
+            self.logger.info('Processing channel %d -> %d', i1, i2)
             # select adjacent channel
-            y1 = data[i, :].copy()
-            y2 = data[i1, :].copy()
-            # subtract offset and zero
-            o1 = params[i]['offset']
-            #y1 = y1 - offset1 - zero1
-            o2 = params[i1]['offset']
+            y1 = data[i1, :].copy()
+            y2 = data[i2, :].copy()
+            # offsets
+            o1 = params[i1]['offset']
+            o2 = 0.0
             # double smooth because zero line is slow
-            smooth(y1, params[i]['smooth'] * 2)
-            smooth(y2, params[i1]['smooth'] * 2)
+            smooth(y1, params[i1]['smooth'] * 2)
+            smooth(y2, params[i2]['smooth'] * 2)
             # zero line = where 2 signals are almost equal
             frac = 0.05
             flag = True
             dy = np.abs(y1 - y2)
             dyptp = dy.ptp()
+            index1 = []
             while flag and (frac < 0.9):
                 mask = dy < (frac * dyptp)
-                index = np.where(mask)[0]
-                if len(index) < (len(dy) / 10.0):
+                index1 = np.where(mask)[0]
+                if len(index1) < (len(dy) / 10.0):
                     frac *= 2.0
-                    self.logger.info('Threshold is doubled %s %s', len(index), frac)
+                    self.logger.info('Threshold is doubled %s %s', len(index1), frac)
                 else:
                     flag = False
-            # plot interm results
-            # axes.plot(ix, dy, label='dy')
-            # self.plot_signal(ix, dy, index, label='dy[index]')
-            # axes.set_title('Zero line %s and %s' % (i, i1))
+            # intermediate plot
+            axes.plot(ix, dy, label='dy')
+            self.plot_signal(ix, dy, index1, label='dy[index1]')
+            axes.set_title('Zero line %s and %s' % (i1, i2))
+            axes.set_xlabel('Index')
+            axes.set_ylabel('Voltage, V')
+            axes.legend(loc='best')
+            self.mplWidget.canvas.draw()
+            # filter signal intersection regions
+            index2 = restoreFromRegions(find_regions(index1, 50, 300, 100, 100, length=ny))
+            if len(index2) <= 0:
+                index2 = np.where(mask)[0]
+            # new offset
+            offset = 0.0
+            if len(index2) > 0:
+                offset = np.average(y2[index2] - y1[index2])
+            self.logger.info('Offset for channel %d = %f' % (i2, offset))
+            # set o2 and shift y1 y2
+            o2 = o1 + offset
+            y1 = y1 - o1
+            y2 = y2 - o2
+            # intermediate plot
+            self.plot_signal(ix, dy, index2, label='dy[index2]')
+            # axes.plot(ix, y1, label='y1')
+            # axes.plot(ix, y2, label='y2')
+            # self.plot_signal(ix, y1, index2, label='y1[index2]')
+            # self.plot_signal(ix, y2, index2, label='y2[index2]')
+            axes.set_xlabel('Index')
+            axes.set_ylabel('Voltage, V')
+            axes.legend(loc='best')
+            self.mplWidget.canvas.draw()
+            # save processed offset
+            params[i2]['offset'] = o2
+            # index with new offset
+            dy = np.abs(y1 - y2)
+            mask = dy < (0.05 * dy.ptp())
+            index3 = np.where(mask)[0]
+            # filter signal intersection
+            regions = find_regions(index3, 50, 300, 100, 100)
+            index4 = restoreFromRegions(regions, 0, 150, length=ny)
+            # update zero line for all channels
+            for j in range(1, nx):
+                if j == i1:
+                    w = 100.0
+                    v = y1[index4]
+                elif j == i2:
+                    w = 100.0
+                    v = y2[index4]
+                else:
+                    w = 1.0 / ((abs(i1 - j)) ** 2 + 1.0)
+                    v = (y1[index4] + y2[index4]) * 0.5
+                zero[j, index4] = (zero[j, index4] * weight[j, index4] + v * w) / (weight[j, index4] + w)
+                weight[j, index4] += w
+                self.paramsAuto[j]['zero'] = zero[j]
+            # intermediate plot
+            # self.plot_signal(ix, zero[i1], index, label='z1[index]')
+            # self.plot_signal(ix, zero[i2], index, label='z2[index]')
             # axes.set_xlabel('Index')
             # axes.set_ylabel('Voltage, V')
             # axes.legend(loc='best')
             # self.mplWidget.canvas.draw()
-            # filter signal intersection regions
-            index = restoreFromRegions(find_regions(index, 50, 300, 100, 100, length=ny))
-            if len(index) <= 0:
-                index = np.where(mask)[0]
             #
-            # new offset
-            if len(index) > 0:
-                offset = np.average(y2[index] - y1[index])
-            else:
-                offset = 0.0
-            self.logger.info('Offset for channel %d = %f' % (i1, offset))
-            # shift y1 y2 and set o2
-            o2 = o1 + offset
-            y1 = y1 - o1
-            y2 = y2 - o2
-            # axes.plot(ix, y1, label='y1')
-            # axes.plot(ix, y2, label='y2')
-            # self.plot_signal(ix, y1, index, label='y1[index]')
-            # self.plot_signal(ix, y2, index, label='y2[index]')
-            # axes.legend(loc='best')
-            # self.mplWidget.canvas.draw()
-            # save processed offset
-            params[i1]['offset'] = o2
-            # index with new offset
-            dy = np.abs(y1 - y2)
-            mask = dy < (0.05 * dy.ptp())
-            index = np.where(mask)[0]
-            # filter signal intersection
-            regions = find_regions(index, 50, 300, 100, 100)
-            index = restoreFromRegions(regions, 0, 150, length=ny)
-            # update zero line for all channels
-            for j in range(1, nx):
-                if j == i:
-                    w = 10.0
-                    zero[j, index] = (zero[j, index] * weight[j, index] + y1[index] * w) / (weight[j, index] + w)
-                elif j == i1:
-                    w = 10.0
-                    zero[j, index] = (zero[j, index] * weight[j, index] + y2[index] * w) / (weight[j, index] + w)
-                else:
-                    w = 1.0 / ((abs(i - j)) ** 2 + 1.0)
-                    zero[j, index] = (zero[j, index] * weight[j, index] + (y1[index] + y2[index]) * (0.5 * w)) / (weight[j, index] + w)
-                weight[j, index] += w
-                self.paramsAuto[j]['zero'] = zero[j]
-            #
-            # self.plot_signal(ix, zero[i], index, label='z1[index]')
-            # self.plot_signal(ix, zero[i1], index, label='z2[index]')
-            # axes.legend(loc='best')
-            # self.mplWidget.canvas.draw()
-            # self.plot_raw_signals([18])
             pass
-        # remove tips
+            self.erasePicture()
+            #
+        # remove zero tips
         n = len(weight[0, :])
         for i in range(1, nx):
             mask = weight[i, :] <= 0.0
@@ -444,9 +433,11 @@ class DesignerMainWindow(QMainWindow):
                     zero[i, j] = zero[i, index1[0]]
                 else:
                     zero[i, j] = zero[i, index1[-1]]
+        #
         # save processed zero line
         for i in range(nx):
             params[i]['zero'] = zero[i]
+            self.paramsAuto[i]['zero'] = zero[i]
 
         x = sv_x
         # determine signal area
@@ -455,7 +446,7 @@ class DesignerMainWindow(QMainWindow):
             # self.logger.info('Channel %d'%i)
             y0 = data[i, :].copy()[xi]
             smooth(y0, params[i]['smooth'])
-            z = zero[i].copy()[xi] + params[i]['offset']
+            z = zero[i].copy()[xi] + params[i1]['offset']
             smooth(z, params[i]['smooth'] * 2)
             y = y0 - z
             ymin = np.min(y)
@@ -483,8 +474,6 @@ class DesignerMainWindow(QMainWindow):
             ir1 = max([xi[0], index - di])
             ir2 = min([xi[-1], index + di])
             params[i]['range'] = [ir1, ir2]
-            # debug draw 11 Range and scale calculation
-            self.debugDraw([i, xi, y, ix[ir1:ir2], y[ir1 - xi[0]:ir2 - xi[0]], is1, is2])
         # filter scales
         sc0 = np.array([params[i]['scale'] for i in range(1, nx)])
         sc = sc0.copy()
@@ -514,10 +503,10 @@ class DesignerMainWindow(QMainWindow):
         l1 = self.read_parameter(0, "l1", 213.0, float)
         l2 = self.read_parameter(0, "l2", 195.0, float)
         x00 = np.zeros(nx - 1)
-        for i in range(1, nx):
-            s = self.read_parameter(i, "scale", 2.0, float)
-            u = self.read_parameter(i, "minvoltage", 0.0, float)
-            x00[i - 1] = -s * u * l1 / l2
+        for i1 in range(1, nx):
+            s = self.read_parameter(i1, "scale", 2.0, float)
+            u = self.read_parameter(i1, "minvoltage", 0.0, float)
+            x00[i1 - 1] = -s * u * l1 / l2
             # self.logger.info('%3d N=%d Umin=%f scale=%f X00=%f'%(i, j, u, s, x00[i-1]))
         npt = 0
         sp = 0.0
@@ -525,73 +514,73 @@ class DesignerMainWindow(QMainWindow):
         sm = 0.0
         dx = x00.copy() * 0.0
         # self.logger.info('%3d X00=%f DX=%f'%(0, x00[0], 0.0))
-        for i in range(1, nx - 1):
-            dx[i] = x00[i] - x00[i - 1]
-            if dx[i] > 0.0:
+        for i1 in range(1, nx - 1):
+            dx[i1] = x00[i1] - x00[i1 - 1]
+            if dx[i1] > 0.0:
                 npt += 1
-                sp += dx[i]
-            if dx[i] < 0.0:
+                sp += dx[i1]
+            if dx[i1] < 0.0:
                 nmt += 1
-                sm += dx[i]
+                sm += dx[i1]
             # self.logger.info('%3d X00=%f DX=%f'%(i, x00[i], dx[i]))
         # self.logger.info('npt=%d %f nmt=%d %f %f'%(npt,sp/npt,nmt,sm/nmt,sp/npt-l1/l2*10.))
         x01 = x00.copy()
         h = x00.copy() * 0.0
-        for i in range(1, nx - 1):
+        for i1 in range(1, nx - 1):
             if npt > nmt:
-                x01[i] = x01[i - 1] + sp / npt
-                if dx[i] > 0.0:
-                    h[i] = h[i - 1]
+                x01[i1] = x01[i1 - 1] + sp / npt
+                if dx[i1] > 0.0:
+                    h[i1] = h[i1 - 1]
                 else:
-                    h[i] = h[i - 1] + 10.0
+                    h[i1] = h[i1 - 1] + 10.0
             else:
-                x01[i] = x01[i - 1] + sm / nmt
-                if dx[i] < 0.0:
-                    h[i] = h[i - 1]
+                x01[i1] = x01[i1 - 1] + sm / nmt
+                if dx[i1] < 0.0:
+                    h[i1] = h[i1 - 1]
                 else:
-                    h[i] = h[i - 1] - 10.0
+                    h[i1] = h[i1 - 1] - 10.0
         x01 = x01 - np.average(x01)
         k = int(np.argmin(np.abs(x01)))
         h = h - h[k]
-        for i in range(1, nx):
-            params[i]['ndh'] = h[i - 1]
-            s = self.read_parameter(i, "scale", 1.7, float)
-            u = self.read_parameter(i, "minvoltage", 0.0, float)
-            x01[i - 1] = (h[i - 1] - s * u) * l1 / l2
-            params[i]['x0'] = x01[i - 1]
+        for i1 in range(1, nx):
+            params[i1]['ndh'] = h[i1 - 1]
+            s = self.read_parameter(i1, "scale", 1.7, float)
+            u = self.read_parameter(i1, "minvoltage", 0.0, float)
+            x01[i1 - 1] = (h[i1 - 1] - s * u) * l1 / l2
+            params[i1]['x0'] = x01[i1 - 1]
             # self.logger.info('%3d'%i, end='  ')
             # self.logger.info('X0=%f mm ndh=%4.1f mm'%(params[i]['x0'],params[i]['ndh']), end='  ')
             # self.logger.info('X00=%f mm DX=%f mm'%(x00[i-1], dx[i-1]))
         # self.logger.info calculated parameters
         self.logger.info('Calculated parameters:')
         s = ''
-        for i in range(nx):
+        for i1 in range(nx):
             try:
-                s = 'Chan.%3d ' % i
-                s = s + 'range=%s; ' % str(params[i]['range'])
-                s = s + 'offset=%f V; ' % params[i]['offset']
-                s = s + 'scale=%6.2f mm/V; ' % params[i]['scale']
-                s = s + 'MinI=%4d; Umin=%6.2f V; ' % (params[i]['minindex'], params[i]['minvoltage'])
-                s = s + 'x0=%5.1f mm; ndh=%5.1f mm' % (params[i]['x0'], params[i]['ndh'])
+                s = 'Chan.%3d ' % i1
+                s = s + 'range=%s; ' % str(params[i1]['range'])
+                s = s + 'offset=%f V; ' % params[i1]['offset']
+                s = s + 'scale=%6.2f mm/V; ' % params[i1]['scale']
+                s = s + 'MinI=%4d; Umin=%6.2f V; ' % (params[i1]['minindex'], params[i1]['minvoltage'])
+                s = s + 'x0=%5.1f mm; ndh=%5.1f mm' % (params[i1]['x0'], params[i1]['ndh'])
             except:
                 pass
             self.logger.info(s)
         self.logger.info('Actual parameters:')
-        for i in range(nx):
+        for i1 in range(nx):
             try:
-                s = 'Chan.%3d ' % i
-                s = s + 'range=%s; ' % str(self.read_parameter(i, "range"))
-                s = s + 'offset=%f V; ' % self.read_parameter(i, "offset")
-                s = s + 'scale=%6.2f mm/V; ' % self.read_parameter(i, "scale")
-                s = s + 'MinI=%4d; ' % (self.read_parameter(i, "minindex"))
-                s = s + 'Umin=%6.2f V; ' % (self.read_parameter(i, "minvoltage"))
-                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i, "x0"))
-                s = s + 'ndh=%5.1f mm' % (self.read_parameter(i, "ndh"))
+                s = 'Chan.%3d ' % i1
+                s = s + 'range=%s; ' % str(self.read_parameter(i1, "range"))
+                s = s + 'offset=%f V; ' % self.read_parameter(i1, "offset")
+                s = s + 'scale=%6.2f mm/V; ' % self.read_parameter(i1, "scale")
+                s = s + 'MinI=%4d; ' % (self.read_parameter(i1, "minindex"))
+                s = s + 'Umin=%6.2f V; ' % (self.read_parameter(i1, "minvoltage"))
+                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i1, "x0"))
+                s = s + 'ndh=%5.1f mm' % (self.read_parameter(i1, "ndh"))
             except:
                 pass
             self.logger.info(s)
         # debug draw X0 calculation
-        self.debugDraw([x01, nx, k])
+        # self.debugDraw([x01, nx, k])
         # save processed to member variable
         self.paramsAuto = params
         self.logger.info('Auto parameters has been calculated')
@@ -1102,6 +1091,7 @@ class DesignerMainWindow(QMainWindow):
             return (None, None, None)
         # self.logger.info('Processing %d'%row)
         # scan voltage
+        # sv = self.read_parameter(0, "smooth", 0, int)
         u = self.data[0, :].copy()
         # smooth
         ns = self.read_parameter(0, "smooth", 100, int)
@@ -1124,7 +1114,7 @@ class DesignerMainWindow(QMainWindow):
         # convert signal to Amperes
         y = y / R
         # signal region
-        r0 = self.read_parameter(0, "range", (0, len(y)))
+        r0 = self.read_parameter(0, "range", [0, len(y)-1])
         r = self.read_parameter(row, "range", r0)
         index = np.arange(r[0], r[1])
         # scale
@@ -1132,11 +1122,12 @@ class DesignerMainWindow(QMainWindow):
         # ndh
         ndh = self.read_parameter(row, "ndh", 0.0, float)
         # scanner base
-        l1 = self.read_parameter(0, "l1", 195.0, float)
         l2 = self.read_parameter(0, "l2", 195.0, float)
-        x0 = self.read_parameter(row, "x0", 0.0, float)
+        # x0
+        x0 = self.read_parameter(row, "x0", -1.0, float)
         # x' in Radians
-        xsub = (ndh - s*u)/l2
+        xsub = (ndh - s*u) / l2
+        # self.logger.info('row=%s x0=%s ndh=%s scale=%s', row, x0, ndh, s)
         return xsub, y, index
 
     def smoothX(self, x, y):
@@ -1166,15 +1157,14 @@ class DesignerMainWindow(QMainWindow):
             nx = len(self.fileNames)
         if nx <= 0:
             return
-        if init:
-            self.execInitScript()
+        self.execInitScript()
         x0 = np.linspace(-(nx - 1)/2.0, (nx - 1)/2.0, nx - 1) # [mm] X0 coordinates of scans
         flag = self.read_parameter(0, 'autox0', False)
         for i in range(1, nx):
             if flag:
-                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float, select='auto')
+                x0[i - 1] = self.read_parameter(i, 'x0', x0[i - 1], float, select='auto')
             else:
-                x0[i - 1] = self.read_parameter(i, 'x0', 0.0, float)
+                x0[i - 1] = self.read_parameter(i, 'x0', x0[i - 1], float)
         return x0
 
     def plot(self, *args, **kwargs):
@@ -1631,8 +1621,8 @@ class DesignerMainWindow(QMainWindow):
         self.calculateProfiles()
 
         # test x0 for unique and sort for all channel except 0
-        x0u, x0i = np.unique(x0[1:], return_index=True)
-        if len(x0u) != len(x0)-1:
+        x0u, x0i = np.unique(x0, return_index=True)
+        if len(x0u) != len(x0):
             self.logger.info('Non unique X0 found')
         nx = len(x0i)
         # create (N x nx) initial arrays
@@ -1657,6 +1647,7 @@ class DesignerMainWindow(QMainWindow):
             yyy, ui = np.unique(yy, return_index=True)
             zzz = zz[ui]
             F0[x0i[i]] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
+            # self.logger.info('i=%s x0i[i]=%s x0u[i]=%s', i, x0i[i], x0u[i])
         # symmetry for Y range
         ymax = max(abs(ymin), abs(ymax))
         ymin = -ymax
@@ -1670,15 +1661,25 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
+        # maximum shift
+        shift_y, shift_i = self.calculate_vertical_shift(Y0[:, 0], F0)
+        x = X0[0, :]
+        y = shift_y
+        # linear regression into shift
+        shift_k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
+        shift_b = y.mean() - shift_k * x.mean()
+        self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
         # plot Z0 - initial signals
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
             self.clearPicture()
             axes.contour(X0, Y0, Z0)
+            axes.plot(x, y, color='blue')
+            axes.plot(x, shift_k*x+shift_b, 'x-', color='red')
             axes.grid(True)
             axes.set_title('Z0 initial data x0 sorted')
             self.mplWidget.canvas.draw()
-            plt.matshow(Z0)
+            # plt.matshow(Z0)
             return
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
@@ -1707,39 +1708,31 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             axes.set_title('Z1 Average shifted')
             self.mplWidget.canvas.draw()
-            plt.matshow(Z1)
             return
-
-        # maximum shift
-        shift_y, shift_i = self.calculate_vertical_shift(Y0[:, 0], F0)
-        x = X0[0, :]
-        y = shift_y
-        # linear regression into shift
-        shift_k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
-        shift_b = y.mean() - shift_k * x.mean()
-        self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
 
         # X0,Y0,Z0 -> X2,Y2,Z2 interpolate for NxN grid
         #points = np.r_['1,2,0', X1.flat, Y1.flat]
         grid_x, grid_y = self.grid(X0, Y0, ny)
         #grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='linear', fill_value=0.0)
-        g = self.interpolate(X0[0, :], shift_y, F0)
+        x = X0[0, :]
+        g = self.interpolate(x, shift_y, F0)
         grid_z = grid_x.copy()
         for i in range(grid_x.shape[0]):
             grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
         # grid_z = self.map(g, grid_x, grid_y)
         X2 = grid_x
         Y2 = grid_y
-        Z2 = grid_z
+        Z2 = grid_z + grid_z.min()
         self.logger.info('Z2 min = %s max = %s', Z2.min(), Z2.max())
         # plot Z2 -> Z1 interpolated for NxN grid
         if int(self.comboBox.currentIndex()) == 12:
             self.clearPicture()
             axes.contour(X2, Y2, Z2)
-            # plt.matshow(Z2)
+            # axes.plot(X2[0,:], shift_k*X2[0,:]+shift_b, 'x-', color='red')
             axes.set_title('Z2 NxN resampled')
             axes.grid(True)
             self.mplWidget.canvas.draw()
+            plt.matshow(Z2)
             return
 
         # X2,Y2,Z2 -> X3,Y3,Z3 remove average X2 and Y2
@@ -1872,7 +1865,7 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             axes.set_title('Z4 NxN total beam')
             self.mplWidget.canvas.draw()
-            plt.matshow(Z4)
+            # plt.matshow(Z4)
             plt.show()
             return
 

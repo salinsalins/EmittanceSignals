@@ -4,6 +4,7 @@ Created on 31 мая 2017 г.
 
 @author: Sanin
 '''
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
 # Python Qt4 or Qt5 bindings for GUI objects
@@ -30,7 +31,8 @@ class MplCanvas(FigureCanvas):
 
     def __init__(self):
         # setup Matplotlib Figure and Axis
-        self.fig = Figure()
+        self.fig = Figure(tight_layout=True)
+        #self.fig.ion()
         self.ax = self.fig.add_subplot(111)
         # initialization of the canvas
         FigureCanvas.__init__(self, self.fig)
@@ -38,6 +40,7 @@ class MplCanvas(FigureCanvas):
         FigureCanvas.setSizePolicy(self,
                                    QtGui.QSizePolicy.Expanding,
                                    QtGui.QSizePolicy.Expanding)
+        plt.ion()
         # notify the system of updated policy
         FigureCanvas.updateGeometry(self)
 
