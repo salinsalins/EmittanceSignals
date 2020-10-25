@@ -1662,12 +1662,13 @@ class DesignerMainWindow(QMainWindow):
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
         # maximum shift
-        shift_y, shift_i = self.calculate_vertical_shift(Y0[:, 0], F0)
+        shift_y, shift_v = self.calculate_vertical_shift(Y0[:, 0], F0)
         x = X0[0, :]
         y = shift_y
         # linear regression into shift
-        shift_k = ((x*y).mean() - x.mean()*y.mean()) / ((x*x).mean() - x.mean()**2)
-        shift_b = y.mean() - shift_k * x.mean()
+        w = np.abs(shift_v)
+        shift_k = ((x*y*w).sum() - (x*w).sum()*(y*w).sum()/w.sum()) / ((x*x*w).sum() - (x*w).sum()**2/w.sum())
+        shift_b = ((y*w).sum() - shift_k * (x*w).sum()) / w.sum()
         self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
         # plot Z0 - initial signals
         if int(self.comboBox.currentIndex()) == 10:
@@ -1679,7 +1680,7 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             axes.set_title('Z0 initial data x0 sorted')
             self.mplWidget.canvas.draw()
-            # plt.matshow(Z0)
+            plt.matshow(Z0)
             return
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
@@ -2101,6 +2102,8 @@ class DesignerMainWindow(QMainWindow):
         try:
             exec(open(fullName).read(), globals(), locals())
             self.logger.info('Init script %s executed.' % fullName)
+        except FileNotFoundError:
+            pass
         except:
             self.logger.info('Init script %s error.', fullName)
             self.logger.debug('Exception info', exc_info=True)
