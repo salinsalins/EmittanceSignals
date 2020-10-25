@@ -4,8 +4,6 @@ Created on Jul 2, 2017
 
 @author: sanin
 """
-# from __future__ import with_statement
-# from __future__ import print_function
 
 import os.path
 import shelve
@@ -41,18 +39,6 @@ _initScript = _progName + '_init.py'
 _logFile = _progName + '.log'
 _dataFile = _progName + '.dat'
 
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
-# formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging.WARNING)
-# console_handler.setFormatter(formatter)
-# file_handler = logging.FileHandler('logger.log')
-# file_handler.setLevel(logging.INFO)
-# file_handler.setFormatter(formatter)
-# logger.addHandler(console_handler)
-# logger.addHandler(file_handler)
-
 
 class TextEditHandler(logging.Handler):
     def __init__(self, wdgt=None):
@@ -73,7 +59,10 @@ class DesignerMainWindow(QMainWindow):
         super(DesignerMainWindow, self).__init__(parent)
         # load the GUI 
         uic.loadUi(r'.\Emittance1.ui', self)
+        #
+        plt.ion()
         # connect the signals with the slots
+        self.pushButton.clicked.connect(self.next_clicked)
         self.pushButton_2.clicked.connect(self.selectFolder)
         self.pushButton_4.clicked.connect(self.processFolder)
         self.pushButton_6.clicked.connect(self.pushPlotButton)
@@ -90,6 +79,7 @@ class DesignerMainWindow(QMainWindow):
         # disable text wrapping in log window
         self.plainTextEdit.setLineWrapMode(0)
         # variables definition
+        self.next_clicked_flag = False
         self.conf = {}
         self.folderName = ''
         self.fleNames = []
@@ -130,6 +120,13 @@ class DesignerMainWindow(QMainWindow):
         # connect mouse button press event
         # self.cid = self.mplWidget.canvas.mpl_connect('button_press_event', self.onclick)
         # self.mplWidget.canvas.mpl_disconnect(cid)
+
+    def next_clicked(self):
+        self.next_clicked_flag = True
+
+    def wait_next(self):
+        while not self.next_clicked_flag:
+            self.next_clicked_flag = False
 
     def showAbout(self):
         QMessageBox.information(self, 'About', _progName + ' Version ' + _progVersion +
