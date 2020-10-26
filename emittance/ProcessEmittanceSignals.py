@@ -62,7 +62,7 @@ class DesignerMainWindow(QMainWindow):
         #
         plt.ion()
         # connect the signals with the slots
-        self.pushButton.clicked.connect(self.next_clicked)
+        # self.pushButton.clicked.connect(self.next_clicked)
         self.pushButton_2.clicked.connect(self.selectFolder)
         self.pushButton_4.clicked.connect(self.processFolder)
         self.pushButton_6.clicked.connect(self.pushPlotButton)
