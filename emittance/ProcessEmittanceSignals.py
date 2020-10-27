@@ -457,15 +457,17 @@ class DesignerMainWindow(QMainWindow):
             dy = ymax - ymin
             mask = y < (ymax - 0.5 * dy)
             index = np.where(mask)[0]
-            ra = find_regions(index)
             is1 = sv_i[0]
             is2 = sv_i[-1]
             params[i]['range'] = [is1, is2]
-            if len(ra) >= 1:
+            ra = find_regions(index)
+            if len(ra) == 1:
                 is1 = np.argmin(y[ra[0][0]:ra[0][1]]) + ra[0][0] + sv_i[0]
-            if len(ra) >= 2:
+            elif len(ra) == 2:
                 is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + sv_i[0]
                 params[i]['scale'] = 10.0 / (x[is2] - x[is1])  # [mm/Volt]
+            else:
+                self.logger.info('Can not defilne range for channel %d, default used', i)
             if np.abs(x[is1]) < np.abs(x[is2]):
                 index = is1
             else:
