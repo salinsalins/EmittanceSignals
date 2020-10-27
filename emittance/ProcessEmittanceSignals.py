@@ -443,10 +443,11 @@ class DesignerMainWindow(QMainWindow):
             self.paramsAuto[i]['zero'] = zero[i]
 
         # determine ranges
-        self.logger.info('Processing ranges ...')
+        self.logger.info('Processing scales and ranges ...')
         x = sv_u
+        xn = np.zeros(nx-1)
         for i in range(1, nx):
-            # self.logger.info('Channel %d' % i)
+            self.logger.info('Channel %d' % i)
             y0 = data[i, :].copy()[sv_i]
             smooth(y0, params[i]['smooth'])
             z = zero[i].copy()[sv_i] + params[i]['offset']
@@ -460,101 +461,86 @@ class DesignerMainWindow(QMainWindow):
             is1 = sv_i[0]
             is2 = sv_i[-1]
             params[i]['range'] = [is1, is2]
-            ra = find_regions(index)
-            if len(ra) == 1:
-                is1 = np.argmin(y[ra[0][0]:ra[0][1]]) + ra[0][0] + sv_i[0]
-            elif len(ra) == 2:
-                is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + sv_i[0]
+            r = find_regions(index)
+            if len(r) < 1 or len(r) > 2:
+                self.logger.info('Can not define scale and range for channel %d, default used', i)
+                continue
+            is1 = np.argmin(y[r[0][0]:r[0][1]]) + r[0][0] + sv_i[0]
+            # y1 = np.min(y[r[0][0]:r[0][1]])
+            if len(r) == 2:
+                is2 = np.argmin(y[r[1][0]:r[1][1]]) + r[1][0] + sv_i[0]
+                # y2 = np.min(y[r[1][0]:r[1][1]])
+                di = int(abs(is2 - is1) / 2.0)
                 params[i]['scale'] = 10.0 / (x[is2] - x[is1])  # [mm/Volt]
+                self.logger.info('Scale: %s', params[i]['scale'])
+                if np.abs(x[is1]) < np.abs(x[is2]):
+                    self.logger.info('Use first min at %d', is1)
+                    index = is1
+                else:
+                    self.logger.info('Use second min at %d', is2)
+                    index = is2
             else:
-                self.logger.info('Can not defilne scale for channel %d, default used', i)
-            if np.abs(x[is1]) < np.abs(x[is2]):
+                self.logger.info('Can not define scale for channel %d, default used', i)
+                di = int((r[0][1] - r[0][0]) * 4.0)
+                self.logger.info('Use first min at %d', is1)
                 index = is1
-            else:
-                index = is2
-            di = int(abs(is2 - is1) / 2.0)
             ir1 = max([sv_i[0], index - di])
             ir2 = min([sv_i[-1], index + di])
             params[i]['range'] = [ir1, ir2]
-        
-        # # calculate scales
-        # sc0 = np.array([params[i]['scale'] for i in range(1, nx)])
-        # sc = sc0.copy()
+            self.logger.info('Range: %s', str(params[i]['range']))
+            # x index of minimum
+            xn[i-1] = index
+
+        # # remove strongly deviated scales
+        # sc = np.array([params[i]['scale'] for i in range(1, nx)])
         # asc = np.average(sc)
         # ssc = np.std(sc)
-        # while ssc > 0.3 * np.abs(asc):
-        #     index1 = np.where(abs(sc - asc) <= 2.0 * ssc)[0]
-        #     index2 = np.where(abs(sc - asc) > 2.0 * ssc)[0]
-        #     sc[index2] = np.average(sc[index1])
-        #     asc = np.average(sc)
-        #     ssc = np.std(sc)
+        # mask = np.abs(sc - asc) > (2.0 * ssc)
+        # sc[mask] = asc
         # for i in range(1, nx):
-        #     params[i]['scale'] = sc[i - 1]
+        #      params[i]['scale'] = sc[i-1]
         
-        # # X0 and ndh calculation
-        # l1 = self.read_parameter(0, "l1", 213.0, float)
-        # l2 = self.read_parameter(0, "l2", 195.0, float)
-        # x00 = np.zeros(nx - 1)
-        # for i1 in range(1, nx):
-        #     s = self.read_parameter(i1, "scale", 2.0, float)
-        #     u = self.read_parameter(i1, "minvoltage", 0.0, float)
-        #     x00[i1 - 1] = -s * u * l1 / l2
-        #     # self.logger.info('%3d N=%d Umin=%f scale=%f X00=%f'%(i, j, u, s, x00[i-1]))
-        # npt = 0
-        # sp = 0.0
-        # nmt = 0
-        # sm = 0.0
-        # dx = x00.copy() * 0.0
-        # # self.logger.info('%3d X00=%f DX=%f'%(0, x00[0], 0.0))
-        # for i1 in range(1, nx - 1):
-        #     dx[i1] = x00[i1] - x00[i1 - 1]
-        #     if dx[i1] > 0.0:
-        #         npt += 1
-        #         sp += dx[i1]
-        #     if dx[i1] < 0.0:
-        #         nmt += 1
-        #         sm += dx[i1]
-        #     # self.logger.info('%3d X00=%f DX=%f'%(i, x00[i], dx[i]))
-        # # self.logger.info('npt=%d %f nmt=%d %f %f'%(npt,sp/npt,nmt,sm/nmt,sp/npt-l1/l2*10.))
-        # x01 = x00.copy()
-        # h = x00.copy() * 0.0
-        # for i1 in range(1, nx - 1):
-        #     if npt > nmt:
-        #         x01[i1] = x01[i1 - 1] + sp / npt
-        #         if dx[i1] > 0.0:
-        #             h[i1] = h[i1 - 1]
-        #         else:
-        #             h[i1] = h[i1 - 1] + 10.0
-        #     else:
-        #         x01[i1] = x01[i1 - 1] + sm / nmt
-        #         if dx[i1] < 0.0:
-        #             h[i1] = h[i1 - 1]
-        #         else:
-        #             h[i1] = h[i1 - 1] - 10.0
-        # x01 = x01 - np.average(x01)
-        # cp = int(np.argmin(np.abs(x01)))
-        # h = h - h[cp]
-        # for i1 in range(1, nx):
-        #     params[i1]['ndh'] = h[i1 - 1]
-        #     s = self.read_parameter(i1, "scale", 1.7, float)
-        #     u = self.read_parameter(i1, "minvoltage", 0.0, float)
-        #     x01[i1 - 1] = (h[i1 - 1] - s * u) * l1 / l2
-        #     params[i1]['x0'] = x01[i1 - 1]
-        #     # self.logger.info('%3d'%i, end='  ')
-        #     # self.logger.info('X0=%f mm ndh=%4.1f mm'%(params[i]['x0'],params[i]['ndh']), end='  ')
-        #     # self.logger.info('X00=%f mm DX=%f mm'%(x00[i-1], dx[i-1]))
-        
+        # X0 and ndh calculation
+        l1 = self.read_parameter(0, "l1", 213.0, float)
+        l2 = self.read_parameter(0, "l2", 195.0, float)
+        x0 = np.zeros(nx - 1)
+        for i in range(1, nx):
+            s = self.read_parameter(i, "scale", 1.95, float)
+            x0[i-1] = x[int(xn[i-1])] * s
+        dx = np.zeros(nx - 2)
+        for i in range(nx - 2):
+            dx[i] = x0[i + 1] - x0[i]
+        x1 = x0.copy()
+        ndh = x0.copy() * 0.0
+        for i in range(nx - 3):
+            self.logger.info('%s X0 %s', i, x1[i] * l1/(l1 + l2))
+            if dx[i] > 0.0 and dx[i+1] < 0.0:
+                x1[i+2:] = x1[i+2:] + 10.0
+                ndh[i+2:] = ndh[i+2:] + 10.0
+                dx[i+1] = 1.0
+            if dx[i] < 0.0 and dx[i+1] > 0.0:
+                x1[i+2:] = x1[i+2:] - 10.0
+                ndh[i+2:] = ndh[i+2:] - 10.0
+                dx[i+1] = -1.0
+
+        X0 = x1 * l1/(l1 + l2)
+        for i in range(1, nx):
+            params[i]['x0'] = X0[i - 1]
+            params[i]['ndh'] = ndh[i - 1]
+            params[i]['minindex'] = xn[i - 1]
+            params[i]['minvoltage'] = x[int(xn[i - 1])]
+
         # print calculated parameters
         self.logger.info('Calculated parameters:')
         s = ''
-        for i1 in range(nx):
+        for i in range(nx):
             try:
-                s = 'Chan.%3d ' % i1
-                s = s + 'range=%s; ' % str(params[i1]['range'])
-                s = s + 'offset=%f V; ' % params[i1]['offset']
-                s = s + 'scale=%6.2f mm/V; ' % params[i1]['scale']
-                s = s + 'MinI=%4d; Umin=%6.2f V; ' % (params[i1]['minindex'], params[i1]['minvoltage'])
-                s = s + 'x0=%5.1f mm; ndh=%5.1f mm' % (params[i1]['x0'], params[i1]['ndh'])
+                s = 'Chan.%3d ' % i
+                s = s + 'range=%s; ' % str(params[i]['range'])
+                s = s + 'offset=%f V; ' % params[i]['offset']
+                s = s + 'scale=%6.2f mm/V; ' % params[i]['scale']
+                s = s + 'x0=%5.1f mm; ' % params[i]['x0']
+                s = s + 'ndh=%5.1f mm' % params[i]['ndh']
             except:
                 pass
             self.logger.info(s)
@@ -565,10 +551,10 @@ class DesignerMainWindow(QMainWindow):
                 s = s + 'range=%s; ' % str(self.read_parameter(i1, "range"))
                 s = s + 'offset=%f V; ' % self.read_parameter(i1, "offset")
                 s = s + 'scale=%6.2f mm/V; ' % self.read_parameter(i1, "scale")
+                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i1, "x0"))
+                s = s + 'ndh=%5.1f mm; ' % (self.read_parameter(i1, "ndh"))
                 s = s + 'MinI=%4d; ' % (self.read_parameter(i1, "minindex"))
                 s = s + 'Umin=%6.2f V; ' % (self.read_parameter(i1, "minvoltage"))
-                s = s + 'x0=%5.1f mm; ' % (self.read_parameter(i1, "x0"))
-                s = s + 'ndh=%5.1f mm' % (self.read_parameter(i1, "ndh"))
             except:
                 pass
             self.logger.info(s)
@@ -1238,7 +1224,11 @@ class DesignerMainWindow(QMainWindow):
         for i in range(nx):
             zz = f[i](y)
             imax = np.argmax(zz)
-            diap = np.linspace(y[imax-5], y[imax+5], 100)
+            i1 = max(imax-5, 0)
+            i2 = min(imax+5, len(y)-1)
+            if i2 == i1:
+                return imax
+            diap = np.linspace(y[i1], y[i2], 100)
             zz = f[i](diap)
             imax = np.argmax(zz)
             shift[i] = diap[imax]
@@ -1312,9 +1302,10 @@ class DesignerMainWindow(QMainWindow):
         for i in range(nx):
             s = 'Chan.%3d ' % i
             if i > 0:
-                s += 'x0=%5.1f [mm]; ndh=%5.1f [mm]; ' % (x0[i-1], ndh[i-1])
+                s += 'x0=%5.1f [mm]; ' % x0[i-1]
+                s += 'ndh=%5.1f [mm]; ' % ndh[i-1]
                 s += 'range=%s; ' % str(ranges[i-1])
-                s += 'offset=%f [V]; ' % offsets[i-1]
+                s += 'offset=%f; ' % offsets[i-1]
                 self.logger.info(s)
 
         # calculate maximum and integral profiles
@@ -1325,18 +1316,14 @@ class DesignerMainWindow(QMainWindow):
         if len(x0u) != len(x0):
             self.logger.info('Non unique X0 found')
         nx = len(x0i)
-        # create (N x nx) initial arrays
-        # X [mm] -- X axis of emittance plot
-        X0 = np.zeros((ny, nx), dtype=np.float64)
-        # X' [radians] --  Y axis  of emittance plot
-        Y0 = np.zeros((ny, nx), dtype=np.float64)
-        # Z [V] -> [mkA] measured signals
-        Z0 = np.zeros((ny, nx), dtype=np.float64)
+        ymin = 1e9
+        ymax = -1e9
+        X0 = np.array(nx)
+        Y0 = np.array(nx)
+        Z0 = np.array(nx)
         # F interpolating functions Z[i,j] = F[i](Y[i,j])
         F0 = list(range(nx))
         # calculate interpolating functions for initial data
-        ymin = 1e9
-        ymax = -1e9
         for i in range(nx):
             y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
             yy = y[index]
@@ -1346,8 +1333,15 @@ class DesignerMainWindow(QMainWindow):
             zz = z[index] * L2 / d2 / a1
             yyy, ui = np.unique(yy, return_index=True)
             zzz = zz[ui]
-            F0[x0i[i]] = interp1d(yyy, -zzz, kind='cubic', bounds_error=False, fill_value=0.0)
+            F0[x0i[i]] = interp1d(yyy, -zzz, kind='linear', bounds_error=False, fill_value=0.0)
             # self.logger.info('i=%s x0i[i]=%s x0u[i]=%s', i, x0i[i], x0u[i])
+        # create (N x nx) initial arrays
+        # X [mm] -- X axis of emittance plot
+        X0 = np.zeros((ny, nx), dtype=np.float64)
+        # X' [radians] --  Y axis  of emittance plot
+        Y0 = np.zeros((ny, nx), dtype=np.float64)
+        # Z [V] -> [mkA] measured signals
+        Z0 = np.zeros((ny, nx), dtype=np.float64)
         # symmetry for Y range
         ymax = max(abs(ymin), abs(ymax))
         ymin = -ymax
@@ -1361,6 +1355,15 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
+        # plot Z0 - initial signals
+        if int(self.comboBox.currentIndex()) == 10:
+            # initial data
+            self.clearPicture()
+            axes.contour(X0, Y0, Z0)
+            axes.grid(True)
+            axes.set_title('Z0 initial data x0 sorted')
+            self.mplWidget.canvas.draw()
+            # plt.matshow(Z0)
         # maximum shift
         shift_y, shift_v = self.calculate_vertical_shift(Y0[:, 0], F0)
         x = X0[0, :]
@@ -1380,7 +1383,7 @@ class DesignerMainWindow(QMainWindow):
             axes.grid(True)
             axes.set_title('Z0 initial data x0 sorted')
             self.mplWidget.canvas.draw()
-            plt.matshow(Z0)
+            #plt.matshow(Z0)
             return
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
@@ -1693,7 +1696,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_ylabel('X\', миллирадиан')
             #labels = ['%2d %% of current' % (fr * 100) for fr in np.sort(fractions)[::-1]]
             labels = ['%2d %% тока' % (fr * 100) for fr in np.sort(fractions)[::-1]]
-            for i in range(len(labels)):
+            for i in range(len(CS.collections)):
                 CS.collections[i].set_label(labels[i])
             axes.legend(loc='upper left')
             # axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
