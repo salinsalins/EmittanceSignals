@@ -467,7 +467,7 @@ class DesignerMainWindow(QMainWindow):
                 is2 = np.argmin(y[ra[1][0]:ra[1][1]]) + ra[1][0] + sv_i[0]
                 params[i]['scale'] = 10.0 / (x[is2] - x[is1])  # [mm/Volt]
             else:
-                self.logger.info('Can not defilne range for channel %d, default used', i)
+                self.logger.info('Can not defilne scale for channel %d, default used', i)
             if np.abs(x[is1]) < np.abs(x[is2]):
                 index = is1
             else:
