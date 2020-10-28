@@ -969,35 +969,6 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('button=%d, x=%d, y=%d, xdata=%f, ydata=%f' %
                          (event.button, event.x, event.y, event.xdata, event.ydata))
 
-    def pickZeroLine(self):
-        if self.data is None:
-            return
-        self.execInitScript()
-        axes = self.mplWidget.canvas.ax
-        self.clearPicture()
-        indexes = self.listWidget.selectedIndexes()
-        if len(indexes) <= 0:
-            return
-        # draw chart
-        row = indexes[0].row()
-        x, xTitle = self.get_x()
-        y = self.data[row, :].copy()
-        ns = self.read_parameter(row, "smooth", self.spinBox.value(), int)
-        smooth(y, ns)
-        z = self.read_zero(row) + self.read_parameter(row, 'offset')
-        axes.plot(x, y, label='raw ' + str(row))
-        axes.plot(x, z, label='zero' + str(row))
-        self.zoplot()
-        axes.grid(True)
-        axes.set_title('Signal %s with zero line' % str(row))
-        axes.set_xlabel(xTitle)
-        axes.set_ylabel('Signal Voltage, V')
-        axes.legend(loc='best')
-        self.mplWidget.canvas.draw()
-        # connect mouse button press event
-        # self.cid = self.mplWidget.canvas.mpl_connect('button_press_event', self.onclick)
-        # self.mplWidget.canvas.mpl_disconnect(cid)
-
     def plotElementaryJets(self):
         """Plot elementary jet profile"""
         if self.data is None:
@@ -1545,17 +1516,8 @@ class DesignerMainWindow(QMainWindow):
             xmask = x[mask]
             for k in range(ny_):
                 xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
-                mask = (xsub >= y_min) * (xsub <= ymax)
-                xn = ((xmask-x_min)/x_delta).astype(int)[mask]
-                yn = ((xsub-y_min)/y_delta).astype(int)[mask]
                 z = self.map(g, xmask + X2avg, xsub)
-                #z = Z2[xn, yn].flatten()
-
                 v = 2.0 * trapz(z, y)
-                # Z4[k, i] = v
-                # xsub = Y4[:, 0] + Y2avg - shift_k * (xi - xmask)
-                # z = g(xmask + X2avg, xsub)
-                # v = 2.0 * trapz(z, y)
                 Z4[:, i] = v
 
         self.logger.info('Elapsed %s seconds', time.time() - t0)
