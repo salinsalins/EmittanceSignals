@@ -1495,7 +1495,7 @@ class DesignerMainWindow(QMainWindow):
         nx_ = x.size
         ny_ = Z4[:, 0].size
         for i in range(nx_):
-            #print(100.0*i/(nx_ - 1), '%')
+            print('%d' % (100.0*i/(nx_ - 1)), '%')
             xi = x[i]
             dx2 = x ** 2 - xi ** 2
             dxgz = dx2 >= 0.0
