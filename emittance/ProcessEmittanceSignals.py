@@ -1526,7 +1526,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Z4 NxN total beam')
             self.mplWidget.canvas.draw()
             # plt.matshow(Z4)
-            plt.show()
+            # plt.show()
             return
 
         # calculate emittance values
