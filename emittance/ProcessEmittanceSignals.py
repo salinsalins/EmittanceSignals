@@ -1163,11 +1163,13 @@ class DesignerMainWindow(QMainWindow):
         deltas = s[1:] - s[:-1]
         d = deltas / deltax
         def f(x, y):
-            if x > x_max or x < x_min:
+            if x > x_max or x <= x_min:
                 return 0.0
             for i in range(nx):
                 if x1[i] > x:
                     break
+            # i1 = np.where(x1 <= x)[0][-1]
+            # xi = i1 + 1
             xi = i
             i1 = i - 1
             if xi == 0:
@@ -1177,7 +1179,8 @@ class DesignerMainWindow(QMainWindow):
             dd = d[i1]
             f1 = F[i1](y - dd * d1)
             f2 = F[xi](y + dd * d2)
-            return (f1 * d2 + f2 * d1) / deltax[i1]
+            v = (f1 * d2 + f2 * d1) / deltax[i1]
+            return v
         return f
 
     def integrate2d(self, x, y, z):
@@ -1662,7 +1665,7 @@ class DesignerMainWindow(QMainWindow):
             return
 
     def saveSettings(self, folder='', fileName=_settings_file_name):
-        fullName = os.path.join(str(folder), fileName)
+        full_name = os.path.join(str(folder), fileName)
         try:
             # save window size and position
             p = self.pos()
@@ -1678,22 +1681,22 @@ class DesignerMainWindow(QMainWindow):
             self.conf['history_index'] = self.comboBox_2.currentIndex()
             self.conf['log_level'] = logging.DEBUG
             self.conf['parameters'] = self.paramsManual
-            with open(fullName, 'w', encoding='utf-8') as configfile:
+            with open(full_name, 'w', encoding='utf-8') as configfile:
                 configfile.write(json.dumps(self.conf, indent=4))
-            self.logger.info('Configuration saved to %s' % fullName)
+            self.logger.info('Configuration saved to %s' % full_name)
             return True
         except:
             self.print_exception_info()
-            self.logger.info('Configuration save error to %s' % fullName)
+            self.logger.info('Configuration save error to %s' % full_name)
             return False
 
     def saveData(self, folder='', fileName=_dataFile):
-        fullName = os.path.join(str(folder), fileName)
-        dbase = shelve.open(fullName, flag='n')
+        full_name = os.path.join(str(folder), fileName)
+        dbase = shelve.open(full_name, flag='n')
         # save paramsAuto
         dbase['paramsAuto'] = self.paramsAuto
         dbase.close()
-        self.logger.info('Processed data saved to %s' % fullName)
+        self.logger.info('Processed data saved to %s' % full_name)
         return True
 
     def restore_settings(self, folder='', file_name=_settings_file_name):
