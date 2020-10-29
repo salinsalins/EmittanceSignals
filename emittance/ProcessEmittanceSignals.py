@@ -277,21 +277,20 @@ class DesignerMainWindow(QMainWindow):
         # size of Y data
         ny = len(data[0])
 
+        # default parameters
+        self.logger.info('Set default parameters ...')
         # smooth
         ns = 1
         try:
             ns = int(self.spinBox.value())
         except:
             pass
-        
-        # default parameters
-        self.logger.info('Set default parameters ...')
         params = [{'smooth': ns, 'offset': 0.0, 'zero': np.zeros(ny), 'scale': 1.95} for i in range(nx)]
-        params[0]['R'] = 2.0e5  # Ohm   Resistor for scanner FC
-        params[0]['d1'] = 0.5  # mm    Scanner analyzer hole diameter
-        params[0]['d2'] = 0.5  # mm    Scanner FC slit width
-        params[0]['l1'] = 213.0  # mm    Distance from emission hole to scanner analyzer hole
-        params[0]['l2'] = 195.0  # mm    Scanner base
+        params[0]['R'] = 2.0e5  # Ohm Resistor for scanner FC
+        params[0]['d1'] = 0.5   # mm  Scanner analyzer hole diameter
+        params[0]['d2'] = 0.5   # mm  Scanner FC slit width
+        params[0]['l1'] = 213.0 # mm  Distance from emission hole to scanner analyzer hole
+        params[0]['l2'] = 195.0 # mm  Scanner base
         self.paramsAuto = params
 
         # smooth data
