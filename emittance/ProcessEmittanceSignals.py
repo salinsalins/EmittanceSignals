@@ -276,8 +276,7 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('%s data files in %s', nx, folder)
         # size of Y data
         ny = len(data[0])
-        # X index array
-        ix = np.arange(ny)
+
         # smooth
         ns = 1
         try:
