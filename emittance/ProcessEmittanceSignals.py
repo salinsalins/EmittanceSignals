@@ -1175,8 +1175,8 @@ class DesignerMainWindow(QMainWindow):
             if xi == 0:
                 return F[0](y)
             d1 = x - x1[i1]
-            d2 = x1[xi] - x
             dd = d[i1]
+            d2 = x1[xi] - x
             f1 = F[i1](y - dd * d1)
             f2 = F[xi](y + dd * d2)
             v = (f1 * d2 + f2 * d1) / deltax[i1]
@@ -1481,10 +1481,10 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Emittance contour plot of beam cross-section')
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliRadians')
-            axes.annotate('Cross-section I=%5.1f mkA' % (self.Ics * 1e6) + ';\nNorm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
+            axes.annotate('Cross-section current %5.1f mkA' % (self.Ics * 1e6) + '\nNorm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
                     self.RMScs * beta),
-                          xy=(.3, .2), xycoords='figure fraction',
-                          horizontalalignment='left', verticalalignment='top',
+                          xy=(0.95, .25), xycoords='figure fraction',
+                          horizontalalignment='right', verticalalignment='top',
                           fontsize=18)
             self.mplWidget.canvas.draw()
             return
