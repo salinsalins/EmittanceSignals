@@ -291,6 +291,7 @@ class DesignerMainWindow(QMainWindow):
         params[0]['d2'] = 0.5   # mm  Scanner FC slit width
         params[0]['l1'] = 213.0 # mm  Distance from emission hole to scanner analyzer hole
         params[0]['l2'] = 195.0 # mm  Scanner base
+        params[0]['svn'] = 0    # 1   Scan voltage channel number
         self.paramsAuto = params
 
         # smooth data
@@ -1611,31 +1612,41 @@ class DesignerMainWindow(QMainWindow):
             axes.contour(X, Y*1000.0, Z, linewidths=1.0)
             axes.grid(True)
             #axes.set_title('Emittance contour plot')
-            axes.set_title('Диаграмма эмиттанса')
+            axes.set_title('Фазовый портрет')
             # axes.set_ylim([ymin,ymax])
             # axes.set_xlabel('X, мм')
             axes.set_xlabel('X, mm')
             # axes.set_ylabel('X\', milliradians')
             axes.set_ylabel('X\', миллирадиан')
-            axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
+            # axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f Pi*mm*mrad' % (
+            #         self.RMS * beta),
+            #               xy=(.5, .2), xycoords='figure fraction',
+            #               horizontalalignment='center', verticalalignment='top',
+            #               fontsize=11)
+            axes.annotate('Нормализованный 1RMS эмиттанс %5.2f $\pi$*mm*mrad' % (
                     self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
                           horizontalalignment='center', verticalalignment='top',
-                          fontsize=11)
+                          fontsize=18)
             self.mplWidget.canvas.draw()
         # plot filled contours
         if int(self.comboBox.currentIndex()) == 6:
             self.clearPicture()
             axes.contourf(X, Y*1000.0, Z)
             axes.grid(True)
-            axes.set_title('Emittance color plot')
-            axes.set_xlabel('X, mm')
-            axes.set_ylabel('X\', milliradians')
-            axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
+            axes.set_title('Фазовый портрет')
+            axes.set_xlabel('X, мм')
+            axes.set_ylabel('X\', миллирадиан')
+            # axes.annotate('Total current %4.1f mA' % (self.I * 1000.0) + '; Norm. RMS Emittance %5.3f $\pi$*mm*mrad' % (
+            #         self.RMS * beta),
+            #               xy=(.5, .2), xycoords='figure fraction',
+            #               horizontalalignment='center', verticalalignment='top',
+            #               fontsize=11, color='white')
+            axes.annotate('Нормализованный 1RMS эмиттанс %5.2f $\pi$*mm*mrad' % (
                     self.RMS * beta),
                           xy=(.5, .2), xycoords='figure fraction',
                           horizontalalignment='center', verticalalignment='top',
-                          fontsize=11, color='white')
+                          fontsize=18, color='white')
             self.mplWidget.canvas.draw()
             return
         # plot levels
@@ -1646,7 +1657,7 @@ class DesignerMainWindow(QMainWindow):
             axes.set_title('Emittance contour plot')
             axes.set_xlabel('X, mm')
             axes.set_ylabel('X\', milliradians')
-            axes.set_title('Диаграмма эмиттанса')
+            axes.set_title('Фазовый портрет')
             axes.set_xlabel('X, мм')
             axes.set_ylabel('X\', миллирадиан')
             #labels = ['%2d %% of current' % (fr * 100) for fr in np.sort(fractions)[::-1]]
