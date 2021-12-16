@@ -1121,18 +1121,21 @@ class DesignerMainWindow(QMainWindow):
         # plot maximal profile
         if int(self.comboBox.currentIndex()) == 4:
             self.clearPicture()
-            axes.set_title('Maximum profile')
-            axes.set_xlabel('X0, mm')
-            axes.set_ylabel('Maximal current, mkA')
-            axes.plot(x0s, self.profilemax * 1.0e6, 'o-', label='Maximum Profile')
+            #axes.set_title('Maximum profile')
+            axes.set_title('Профиль пучка')
+            axes.set_xlabel('X, mm')
+            #axes.set_ylabel('Maximal current, mkA')
+            axes.set_ylabel('Плотность тока, отн.ед.')
+            #axes.plot(x0s, self.profilemax * 1.0e6, 'o-', label='Maximum Profile')
+            axes.plot(x0s, self.profilemax * 1.0e6, 'o-' )
             # axes.plot(x0s, gaussfit(x0s,profilemax,x0s), '--', label='Gaussian fit')
             axes.grid(True)
             axes.legend(loc='best')
-            axes.annotate(
-                'Total current %4.1f mA' % (self.I * 1000.0) + ' Cross-section current %4.1f mkA' % (self.Ics * 1e6),
-                xy=(.5, .2), xycoords='figure fraction',
-                horizontalalignment='center', verticalalignment='top',
-                fontsize=11)
+            # axes.annotate(
+            #     'Total current %4.1f mA' % (self.I * 1000.0) + ' Cross-section current %4.1f mkA' % (self.Ics * 1e6),
+            #     xy=(.5, .2), xycoords='figure fraction',
+            #     horizontalalignment='center', verticalalignment='top',
+            #     fontsize=11)
             self.mplWidget.canvas.draw()
 
     def map(self, f, x, y):
