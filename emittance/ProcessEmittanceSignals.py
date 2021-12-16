@@ -716,8 +716,13 @@ class DesignerMainWindow(QMainWindow):
             v = vm
         except:
             vm = None
-        if dtype is not None:
-            v = dtype(v)
+
+        if v is not None:
+            if dtype is not None:
+                v = dtype(v)
+            elif default is not None:
+                v = type(default)(v)
+
         if info:
             self.logger.info('row:%d parameter:%s; return %s value:%s (default:%s; auto:%s; manual:%s)' % (
                 row, name, t, str(v), str(vd), str(va), str(vm)))
@@ -1202,8 +1207,6 @@ class DesignerMainWindow(QMainWindow):
             imax = np.argmax(zz)
             i1 = max(imax-5, 0)
             i2 = min(imax+5, len(y)-1)
-            if i2 == i1:
-                return imax
             diap = np.linspace(y[i1], y[i2], 100)
             zz = f[i](diap)
             imax = np.argmax(zz)
@@ -1294,10 +1297,8 @@ class DesignerMainWindow(QMainWindow):
         nx = len(x0i)
         ymin = 1e9
         ymax = -1e9
-        X0 = np.array(nx)
-        Y0 = np.array(nx)
-        Z0 = np.array(nx)
-        # F interpolating functions Z[i,j] = F[i](Y[i,j])
+        # F0 interpolating functions Z[i,j] = F0[i](Y[i,j])
+        # linear interpolation
         F0 = list(range(nx))
         # calculate interpolating functions for initial data
         for i in range(nx):
@@ -1331,15 +1332,6 @@ class DesignerMainWindow(QMainWindow):
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
-        # plot Z0 - initial signals
-        if int(self.comboBox.currentIndex()) == 10:
-            # initial data
-            self.clearPicture()
-            axes.contour(X0, Y0, Z0)
-            axes.grid(True)
-            axes.set_title('Z0 initial data x0 sorted')
-            self.mplWidget.canvas.draw()
-            # plt.matshow(Z0)
         # maximum shift
         shift_y, shift_v = self.calculate_vertical_shift(Y0[:, 0], F0)
         x = X0[0, :]
