@@ -1249,6 +1249,7 @@ class DesignerMainWindow(QMainWindow):
         d1 = self.read_parameter(0, 'd1', 0.5, float)    # [mm] analyzer hole diameter
         a1 = np.pi * d1 * d1 / 4.0                      # [mm**2] analyzer hole area
         d2 = self.read_parameter(0, 'd2', 0.5, float)    # [mm] analyzer slit width
+        N = self.read_parameter(0, 'N', 200, int)
         ny = self.read_parameter(0, 'N', 200, int)        # number of points for emittance matrix
         U = self.read_parameter(0, 'energy', 32000.0, float)
         # calculated parameters
@@ -1294,7 +1295,26 @@ class DesignerMainWindow(QMainWindow):
         x0u, x0i = np.unique(x0, return_index=True)
         if len(x0u) != len(x0):
             self.logger.info('Non unique X0 found')
+        # number of unique points along X
         nx = len(x0i)
+
+        # read initial data and convert Z to [Amperes/Radian/mm^2]
+        x_data = []
+        y_data = []
+        z_data = []
+        y_data_min = 1e9
+        y_data_max = -1e9
+        for i in range(nx):
+            x_data.append(x0i[i])
+            y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
+            # convert Z to [Ampere/Radian/mm^2]
+            z1 = z[index] * -1.0 * L2 / d2 / a1
+            y1, y1i = np.unique(y[index], return_index=True)
+            y_data_min = min(y_data_min, y1.min())
+            y_data_max = max(y_data_max, y1.max())
+            y_data.append(y1)
+            z_data.append(z1[y1i])
+
         ymin = 1e9
         ymax = -1e9
         # F0 interpolating functions Z[i,j] = F0[i](Y[i,j])
@@ -1302,16 +1322,19 @@ class DesignerMainWindow(QMainWindow):
         F0 = list(range(nx))
         # calculate interpolating functions for initial data
         for i in range(nx):
-            y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
-            yy = y[index]
-            ymin = min(ymin, yy.min())
-            ymax = max(ymax, yy.max())
-            # convert to [Ampere/Radian/mm^2]
-            zz = z[index] * L2 / d2 / a1
-            yyy, ui = np.unique(yy, return_index=True)
-            zzz = zz[ui]
-            F0[x0i[i]] = interp1d(yyy, -zzz, kind='linear', bounds_error=False, fill_value=0.0)
+            # y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
+            # yy = y[index]
+            # ymin = min(ymin, yy.min())
+            # ymax = max(ymax, yy.max())
+            # # convert to [Ampere/Radian/mm^2]
+            # zz = z[index] * L2 / d2 / a1
+            # yyy, ui = np.unique(yy, return_index=True)
+            # zzz = zz[ui]
+            # F0[x0i[i]] = interp1d(yyy, -zzz, kind='linear', bounds_error=False, fill_value=0.0)
+            F0[x0i[i]] = interp1d(y_data[i], z_data[i], kind='linear', bounds_error=False, fill_value=0.0)
             # self.logger.info('i=%s x0i[i]=%s x0u[i]=%s', i, x0i[i], x0u[i])
+        ymin = y_data_min
+        ymax = y_data_max
         # create (N x nx) initial arrays
         # X [mm] -- X axis of emittance plot
         X0 = np.zeros((ny, nx), dtype=np.float64)
@@ -1341,6 +1364,8 @@ class DesignerMainWindow(QMainWindow):
         shift_k = ((x*y*w).sum() - (x*w).sum()*(y*w).sum()/w.sum()) / ((x*x*w).sum() - (x*w).sum()**2/w.sum())
         shift_b = ((y*w).sum() - shift_k * (x*w).sum()) / w.sum()
         self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
+        # spline into shift
+        Ymax = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=0.0)
         # plot Z0 - initial signals
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
@@ -1348,11 +1373,24 @@ class DesignerMainWindow(QMainWindow):
             axes.contour(X0, Y0, Z0)
             axes.plot(x, y, color='blue')
             axes.plot(x, shift_k*x+shift_b, 'x-', color='red')
+            axes.plot(x, Ymax(x), 'x-', color='magenta')
             axes.grid(True)
             axes.set_title('Z0 initial data x0 sorted')
             self.mplWidget.canvas.draw()
             #plt.matshow(Z0)
             return
+
+        # New interpolation for NxN matrix calculation
+        x0 = X0[0, :]  # nx points at
+        # at each point p=(x[i],y) Z can be calculated as Z(p) = F[i](y)
+        # need value at arbitrary q=(x,y)
+        limx = max(abs(x0.max()), abs(x0.min()))
+        margin = 1.05
+        Xarr = np.linspace(-limx * margin, limx * margin, N)
+        Ymax_arr = Ymax(Xarr)
+
+
+
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
         X0avg = 0.0
