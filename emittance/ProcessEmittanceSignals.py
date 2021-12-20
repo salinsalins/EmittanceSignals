@@ -844,17 +844,16 @@ class DesignerMainWindow(QMainWindow):
 
     def read_x0(self, nx=None, init=False):
         if nx is None:
-            nx = len(self.fileNames)
+            nx = len(self.fileNames) - 1
         if nx <= 0:
-            return
-        self.execInitScript()
-        x0 = np.linspace(-(nx - 1)/2.0, (nx - 1)/2.0, nx - 1) # [mm] X0 coordinates of scans
+            return []
+        x0 = np.linspace(-nx/2.0, nx/2.0, nx) # [mm] X0 coordinates of scans
         flag = self.read_parameter(0, 'autox0', False)
-        for i in range(1, nx):
+        for i in range(nx):
             if flag:
-                x0[i - 1] = self.read_parameter(i, 'x0', x0[i - 1], float, select='auto')
+                x0[i] = self.read_parameter(i+1, 'x0', x0[i], float, select='auto')
             else:
-                x0[i - 1] = self.read_parameter(i, 'x0', x0[i - 1], float)
+                x0[i] = self.read_parameter(i+1, 'x0', x0[i], float)
         return x0
 
     def plot(self, *args, **kwargs):
@@ -1021,7 +1020,7 @@ class DesignerMainWindow(QMainWindow):
         if int(self.comboBox.currentIndex()) == 4:
             self.calculateProfiles()
             return
-        self.calculateEmittance()
+        self.calculate_emittance()
 
     def calculateProfiles(self):
         nx = len(self.fileNames)
@@ -1226,17 +1225,18 @@ class DesignerMainWindow(QMainWindow):
         grid_x, grid_y = np.meshgrid(xg, yg)
         return grid_x, grid_y
 
-    def calculateEmittance(self):
+    def calculate_emittance(self):
         if self.data is None:
             return
         # number of traces
-        nx = len(self.fileNames)
+        nx = len(self.fileNames) - 1
         if nx <= 0:
+            self.logger.warning('No data files')
             return
-        # plot area axes
-        axes = self.mplWidget.canvas.ax
         # init manual parameters
         self.execInitScript()
+        # plot area axes
+        axes = self.mplWidget.canvas.ax
         # constants
         q = 1.6e-19         # [Q] electron charge
         mp = 1.6726e-27     # [kg] proton mass
@@ -1258,55 +1258,54 @@ class DesignerMainWindow(QMainWindow):
         beta = V / c                    # beta = V/c
         # channels parameters
         x0 = self.read_x0()         # [mm] X0 coordinates of scans
-        ndh = np.zeros_like(x0)     # [mm] displacement of analyzer slit (number n) from axis
+        nx = len(x0)
+        ndh = []                    # [mm] displacement of analyzer slit (number n) from axis
         ranges = []
         scales = []
         offsets = []
-        for i in range(1, nx):
-            ndh[i - 1] = self.read_parameter(i, 'ndh', 0.0, float)
-            ranges.append(self.read_parameter(i, 'range', [10, 9990]))
-            scales.append(self.read_parameter(i, 'scale', 2.0, float))
-            offsets.append(self.read_parameter(i, 'offset', 0.0, float))
+        for i in range(nx):
+            ndh.append(self.read_parameter(i+1, 'ndh', 0.0, float))
+            ranges.append(self.read_parameter(i+1, 'range', [10, 9990]))
+            scales.append(self.read_parameter(i+1, 'scale', 2.0, float))
+            offsets.append(self.read_parameter(i+1, 'offset', 0.0, float))
         # print parameters
         self.logger.info('\n-------------------------------------------')
         self.logger.info('Emittance calculation parameters:')
-        self.logger.info('Beam energy U=%f [V]', U)
-        self.logger.info('H- speed V=%e [m/s]', V)
-        self.logger.info('Beam beta=%e', beta)
-        self.logger.info('Load resistor R=%f [Ohm]', R)
-        self.logger.info('From source to the scanner L1=%f [mm]', L1)
-        self.logger.info('Scanner base L2=%f [mm]', L2)
-        self.logger.info('Aperture diameter d1=%f [mm]', d1)
-        self.logger.info('Slit width d2=%f [mm]', d2)
-        s = ''
-        for i in range(nx):
-            s = 'Chan.%3d ' % i
-            if i > 0:
-                s += 'x0=%5.1f [mm]; ' % x0[i-1]
-                s += 'ndh=%5.1f [mm]; ' % ndh[i-1]
-                s += 'range=%s; ' % str(ranges[i-1])
-                s += 'offset=%f; ' % offsets[i-1]
-                self.logger.info(s)
+        self.logger.info('Beam energy U = %f [V]', U)
+        self.logger.info('H- speed V = %e [m/s]', V)
+        self.logger.info('Beam beta = %e', beta)
+        self.logger.info('Load resistor R = %f [Ohm]', R)
+        self.logger.info('From source to the scanner L1 = %f [mm]', L1)
+        self.logger.info('Scanner base L2 = %f [mm]', L2)
+        self.logger.info('Aperture diameter d1 = %f [mm]', d1)
+        self.logger.info('Slit width d2 = %f [mm]', d2)
+        for i in range(1, nx):
+            s = '%3d x0 = %5.1f [mm]; ' % (i, x0[i])
+            s += 'ndh = %5.1f [mm]; ' % ndh[i]
+            s += 'range = %s; ' % str(ranges[i])
+            s += 'offset = %f; ' % offsets[i]
+            self.logger.info(s)
 
         # calculate maximum and integral profiles
         self.calculateProfiles()
 
-        # test x0 for unique and sort for all channel except 0
-        x0u, x0i = np.unique(x0, return_index=True)
-        if len(x0u) != len(x0):
+        # test x_0 for unique and sort for all channel except 0
+        unique_x, unique_i = np.unique(x0, return_index=True)
+        if len(unique_x) != len(x0):
             self.logger.info('Non unique X0 found')
         # number of unique points along X
-        nx = len(x0i)
-
+        nx = len(unique_i)
+        if nx <= 1:
+            self.logger.warning('Not enough data')
+            return
         # read initial data and convert Z to [Amperes/Radian/mm^2]
-        x_data = []
+        x_data = unique_x
         y_data = []
         z_data = []
         y_data_min = 1e9
         y_data_max = -1e9
         for i in range(nx):
-            x_data.append(x0i[i])
-            y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
+            y, z, index = self.readSignal(unique_i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
             # convert Z to [Ampere/Radian/mm^2]
             z1 = z[index] * -1.0 * L2 / d2 / a1
             y1, y1i = np.unique(y[index], return_index=True)
@@ -1314,80 +1313,130 @@ class DesignerMainWindow(QMainWindow):
             y_data_max = max(y_data_max, y1.max())
             y_data.append(y1)
             z_data.append(z1[y1i])
-
-        ymin = 1e9
-        ymax = -1e9
         # F0 interpolating functions Z[i,j] = F0[i](Y[i,j])
         # linear interpolation
         F0 = list(range(nx))
         # calculate interpolating functions for initial data
         for i in range(nx):
-            # y, z, index = self.readSignal(x0i[i] + 1)  # y in [Radians]; z < 0.0 in [A]
-            # yy = y[index]
-            # ymin = min(ymin, yy.min())
-            # ymax = max(ymax, yy.max())
-            # # convert to [Ampere/Radian/mm^2]
-            # zz = z[index] * L2 / d2 / a1
-            # yyy, ui = np.unique(yy, return_index=True)
-            # zzz = zz[ui]
-            # F0[x0i[i]] = interp1d(yyy, -zzz, kind='linear', bounds_error=False, fill_value=0.0)
-            F0[x0i[i]] = interp1d(y_data[i], z_data[i], kind='linear', bounds_error=False, fill_value=0.0)
-            # self.logger.info('i=%s x0i[i]=%s x0u[i]=%s', i, x0i[i], x0u[i])
-        ymin = y_data_min
-        ymax = y_data_max
+            #F0[i] = interp1d(y_data[i], z_data[i], kind='linear', bounds_error=False, fill_value=0.0)
+            F0[i] = interp1d(y_data[i], z_data[i], kind='cubic', bounds_error=False, fill_value=0.0)
+
         # create (N x nx) initial arrays
+        N = 200
         # X [mm] -- X axis of emittance plot
-        X0 = np.zeros((ny, nx), dtype=np.float64)
+        X0 = np.zeros((N, nx), dtype=np.float64)
         # X' [radians] --  Y axis  of emittance plot
-        Y0 = np.zeros((ny, nx), dtype=np.float64)
+        Y0 = np.zeros((N, nx), dtype=np.float64)
         # Z [V] -> [mkA] measured signals
-        Z0 = np.zeros((ny, nx), dtype=np.float64)
-        # symmetry for Y range
-        ymax = max(abs(ymin), abs(ymax))
+        Z0 = np.zeros((N, nx), dtype=np.float64)
+        # define symmetric Y range
+        ymax = max(abs(y_data_min), abs(y_data_max))
         ymin = -ymax
         # Y range array
-        ys = np.linspace(ymin, ymax, ny)
+        y_range = np.linspace(ymin, ymax, N)
         # fill data arrays
         for i in range(nx):
-            X0[:, i] = x0u[i]
-            Y0[:, i] = ys
-            Z0[:, i] = F0[i](ys)
+            X0[:, i] = unique_x[i]
+            Y0[:, i] = y_range
+            Z0[:, i] = F0[i](y_range)
         self.logger.info('Z0 min = %s max = %s', Z0.min(), Z0.max())
         # remove negative data
         Z0[Z0 < 0.0] = 0.0
-        # maximum shift
-        shift_y, shift_v = self.calculate_vertical_shift(Y0[:, 0], F0)
-        x = X0[0, :]
-        y = shift_y
+
+        # maximums of each scan trace
+        max_x = x_data
+        max_y, max_z = self.calculate_vertical_shift(y_range, F0)
+        x = x_data
+        y = max_y
         # linear regression into shift
-        w = np.abs(shift_v)
-        shift_k = ((x*y*w).sum() - (x*w).sum()*(y*w).sum()/w.sum()) / ((x*x*w).sum() - (x*w).sum()**2/w.sum())
-        shift_b = ((y*w).sum() - shift_k * (x*w).sum()) / w.sum()
-        self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', shift_k, shift_b, 1.0/L1)
+        w = np.abs(max_z)
+        max_k = ((x * y * w).sum() - (x * w).sum() * (y * w).sum() / w.sum()) / ((x * x * w).sum() - (x * w).sum() ** 2 / w.sum())
+        max_b = ((y * w).sum() - max_k * (x * w).sum()) / w.sum()
+        self.logger.info('Maximum shift k = %s b = %s 1/L1 = %s', max_k, max_b, 1.0 / L1)
         # spline into shift
-        Ymax = interp1d(x, y, kind='cubic', bounds_error=False, fill_value=0.0)
+        max_line = interp1d(max_x, max_y, kind='cubic', bounds_error=False, fill_value='extrapolate')
         # plot Z0 - initial signals
+        # if int(self.comboBox.currentIndex()) == 10:
+        #     # initial data
+        #     self.clearPicture()
+        #     axes.contour(X0, Y0, Z0)
+        #     axes.plot(x, y, color='blue')
+        #     axes.plot(x, max_k*x+max_b, 'x-', color='red')
+        #     axes.plot(x, max_line(x), 'x-', color='magenta')
+        #     axes.grid(True)
+        #     axes.set_title('Z0 initial data x_0 sorted')
+        #     self.mplWidget.canvas.draw()
+        #     #plt.matshow(Z0)
+        #     return
+
+        # New interpolation for NxN matrix calculation
+        x_0 = X0[0, :]  # nx points at
+        # at each point p=(x[i],y) Z can be calculated as Z(p) = F[i](y)
+        # need value at arbitrary q=(x,y)
+        x_margin = 1.05
+        x_lim = max(abs(x_0.max()), abs(x_0.min())) * x_margin
+        x_n = np.linspace(-x_lim, x_lim, N)
+        y_margin = 1.05
+        y_lim = max(abs(y_data_max), abs(y_data_min)) * y_margin
+        y_n = np.linspace(-y_lim, y_lim, N)
+        max_y_n = max_line(x_n)
+        x_big = np.empty((N,N))
+        y_big = np.empty((N,N))
+        z_big = np.empty((N,N))
+        # fill x_big amd y_big
+        for i in range(N):
+            x_big[:, i] = x_n
+            y_big[i, :] = y_n
+        # length along max_line
+        max_line_l = 0.0
+        max_line_x0 = x_n[0]
+        max_line_y0 = max_line(x_n[0])
+        max_line_length = np.empty(N)
+        max_line_length0 = np.zeros_like(x_0)
+        j = 0
+        for i in range(N):
+            # length along max_line
+            max_line_x1 = x_n[i]
+            max_line_y1 = max_line(x_n[i]).flatten()
+            delta_l = np.sqrt((max_line_x1-max_line_x0)**2 + (max_line_y1-max_line_y0)**2)
+            max_line_x0 = max_line_x1
+            max_line_y0 = max_line_y1
+            max_line_l += delta_l
+            max_line_length[i] = max_line_l
+            if x_n[i] <= x_0[j]:
+                max_line_length0[j] = max_line_l
+            else:
+                j += 1
+                j = min(j, nx-1)
+        # interpolate along max_line
+        max_line_z = interp1d(max_line_length0, max_z, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        # fill z_big
+        for i in range(N):
+            k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1))
+            z_big[i, k] = max_line_z(max_line_length[i])
+
+        # dk = 10
+        # for i in range(dk):
+        #     for i in range(N):
+        #         z = F0[:](y1)
+        #         max_line_z = interp1d(max_line_length0, z, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        #         k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1)) + dk
+        #         z_big[i, k+dk] = max_line_z(max_line_length[i])
+
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
             self.clearPicture()
-            axes.contour(X0, Y0, Z0)
-            axes.plot(x, y, color='blue')
-            axes.plot(x, shift_k*x+shift_b, 'x-', color='red')
-            axes.plot(x, Ymax(x), 'x-', color='magenta')
+            #axes.plot(max_line_length, max_line_along(max_line_length), 'x-', color='red')
+            #axes.plot(max_line_length0, y, 'x-', color='blue')
+            axes.contour(x_big, y_big, z_big)
+            #axes.plot(x, max_line(x), 'x-', color='magenta')
             axes.grid(True)
-            axes.set_title('Z0 initial data x0 sorted')
+            axes.set_title('Test 1')
             self.mplWidget.canvas.draw()
-            #plt.matshow(Z0)
             return
 
-        # New interpolation for NxN matrix calculation
-        x0 = X0[0, :]  # nx points at
-        # at each point p=(x[i],y) Z can be calculated as Z(p) = F[i](y)
-        # need value at arbitrary q=(x,y)
-        limx = max(abs(x0.max()), abs(x0.min()))
-        margin = 1.05
-        Xarr = np.linspace(-limx * margin, limx * margin, N)
-        Ymax_arr = Ymax(Xarr)
+
+
 
 
 
@@ -1425,7 +1474,7 @@ class DesignerMainWindow(QMainWindow):
         grid_x, grid_y = self.grid(X0, Y0, ny)
         #grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='linear', fill_value=0.0)
         x = X0[0, :]
-        g = self.interpolate(x, shift_y, F0)
+        g = self.interpolate(x, max_y, F0)
         grid_z = grid_x.copy()
         for i in range(grid_x.shape[0]):
             grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
@@ -1440,7 +1489,7 @@ class DesignerMainWindow(QMainWindow):
         if int(self.comboBox.currentIndex()) == 12:
             self.clearPicture()
             axes.contour(X2, Y2, Z2)
-            # axes.plot(X2[0,:], shift_k*X2[0,:]+shift_b, 'x-', color='red')
+            # axes.plot(X2[0,:], max_k*X2[0,:]+max_b, 'x-', color='red')
             axes.set_title('Z2 NxN resampled')
             axes.grid(True)
             self.mplWidget.canvas.draw()
@@ -1542,7 +1591,7 @@ class DesignerMainWindow(QMainWindow):
                 y = -np.sqrt(dx2[mask])
             xmask = x[mask]
             for k in range(ny_):
-                xsub = Y4[k, 0] + Y2avg - shift_k * (xi - xmask)
+                xsub = Y4[k, 0] + Y2avg - max_k * (xi - xmask)
                 z = self.map(g, xmask + X2avg, xsub)
                 v = 2.0 * trapz(z, y)
                 Z4[k, i] = v
