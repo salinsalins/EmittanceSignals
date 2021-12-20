@@ -1195,6 +1195,8 @@ class DesignerMainWindow(QMainWindow):
         v = np.zeros(n, dtype=np.float64)
         for i in range(n):
             v[i] = trapz(z[:, i], y[:, i])
+            if z[:,i].sum() > 0.0 and v[i] == 0 :
+                print(i, z[:,i].sum())
         return trapz(v, x[0, :])
 
     def calculate_vertical_shift(self, y, f):
@@ -1322,7 +1324,7 @@ class DesignerMainWindow(QMainWindow):
             F0[i] = interp1d(y_data[i], z_data[i], kind='cubic', bounds_error=False, fill_value=0.0)
 
         # create (N x nx) initial arrays
-        N = 200
+        N = 500
         # X [mm] -- X axis of emittance plot
         X0 = np.zeros((N, nx), dtype=np.float64)
         # X' [radians] --  Y axis  of emittance plot
@@ -1370,7 +1372,7 @@ class DesignerMainWindow(QMainWindow):
         #     return
 
         # New interpolation for NxN matrix calculation
-        x_0 = X0[0, :]  # nx points at
+        x_0 = x_data  # nx points at
         # at each point p=(x[i],y) Z can be calculated as Z(p) = F[i](y)
         # need value at arbitrary q=(x,y)
         x_margin = 1.05
@@ -1379,30 +1381,32 @@ class DesignerMainWindow(QMainWindow):
         y_margin = 1.05
         y_lim = max(abs(y_data_max), abs(y_data_min)) * y_margin
         y_n = np.linspace(-y_lim, y_lim, N)
-        max_y_n = max_line(x_n)
-        x_big = np.empty((N,N))
-        y_big = np.empty((N,N))
-        z_big = np.empty((N,N))
+        x_big = np.empty((N, N), dtype=np.float64)
+        y_big = np.empty((N, N), dtype=np.float64)
+        z_big = np.empty((N, N), dtype=np.float64)
         # fill x_big amd y_big
         for i in range(N):
             x_big[:, i] = x_n
             y_big[i, :] = y_n
+        # max line x and y
+        max_x_n = x_n
+        max_y_n = max_line(x_n)
         # length along max_line
         max_line_l = 0.0
-        max_line_x0 = x_n[0]
-        max_line_y0 = max_line(x_n[0])
+        max_line_x0 = max_x_n[0]
+        max_line_y0 = max_y_n[0]
         max_line_length = np.empty(N)
         max_line_length0 = np.zeros_like(x_0)
         j = 0
         for i in range(N):
             # length along max_line
             max_line_x1 = x_n[i]
-            max_line_y1 = max_line(x_n[i]).flatten()
+            max_line_y1 = max_y_n[i]
             delta_l = np.sqrt((max_line_x1-max_line_x0)**2 + (max_line_y1-max_line_y0)**2)
-            max_line_x0 = max_line_x1
-            max_line_y0 = max_line_y1
             max_line_l += delta_l
             max_line_length[i] = max_line_l
+            max_line_x0 = max_line_x1
+            max_line_y0 = max_line_y1
             if x_n[i] <= x_0[j]:
                 max_line_length0[j] = max_line_l
             else:
@@ -1411,35 +1415,49 @@ class DesignerMainWindow(QMainWindow):
         # interpolate along max_line
         max_line_z = interp1d(max_line_length0, max_z, kind='cubic', bounds_error=False, fill_value='extrapolate')
         # fill z_big
+        k = (max_y_n + y_lim) / 2. / y_lim * (N - 1)
         for i in range(N):
-            k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1))
-            z_big[i, k] = max_line_z(max_line_length[i])
+            #k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1))
+            z_big[i, int(k[i])] = max_line_z(max_line_length[i])
 
-        # dk = 10
-        # for i in range(dk):
-        #     for i in range(N):
-        #         z = F0[:](y1)
-        #         max_line_z = interp1d(max_line_length0, z, kind='cubic', bounds_error=False, fill_value='extrapolate')
-        #         k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1)) + dk
-        #         z_big[i, k+dk] = max_line_z(max_line_length[i])
+        dy = 2. * y_lim / (N-1)
+        dkmax = int((y_lim - max(max_y)) / dy - 1)
+        dkmin = int((y_lim + min(max_y)) / dy - 1)
+        z = np.zeros_like(max_y)
+        for i in range(-dkmin, dkmax):
+            y = dy * i + max_y
+            for i2 in range(nx):
+                z[i2] = F0[i2](y[i2])
+            max_line_z = interp1d(max_line_length0, z, kind='cubic', bounds_error=False, fill_value='extrapolate')
+            for i1 in range(N):
+                z_big[i1, int(k[i1])+i] = max_line_z(max_line_length[i1])
+        z_big[z_big < 0.0] = 0.0
 
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
             self.clearPicture()
             #axes.plot(max_line_length, max_line_along(max_line_length), 'x-', color='red')
             #axes.plot(max_line_length0, y, 'x-', color='blue')
-            axes.contour(x_big, y_big, z_big)
+            #axes.contour(x_big, y_big, z_big)
             #axes.plot(x, max_line(x), 'x-', color='magenta')
+            #axes.grid(True)
+            #axes.set_title('Test 1')
+            axes.contourf(x_big, y_big*1000.0, z_big)
             axes.grid(True)
-            axes.set_title('Test 1')
+            axes.set_title('Фазовый портрет')
+            axes.set_xlabel('X, мм')
+            axes.set_ylabel('X\', миллирадиан')
+            # axes.annotate('Нормализованный 1RMS эмиттанс %5.2f $\pi$*mm*mrad' % (
+            #         self.RMS * beta),
+            #               xy=(.5, .2), xycoords='figure fraction',
+            #               horizontalalignment='center', verticalalignment='top',
+            #               fontsize=18, color='white')
             self.mplWidget.canvas.draw()
             return
 
-
-
-
-
-
+        X0 = x_big
+        Y0 = y_big
+        Z0 = z_big
 
         # X0,Y0,Z0 -> X1,Y1,Z1 remove average X0 and Y0
         X0avg = 0.0
@@ -1450,8 +1468,11 @@ class DesignerMainWindow(QMainWindow):
             Y0avg = Y0.flat[n]
         if self.read_parameter(0, 'center', 'avg') == 'avg':
             Z0t = self.integrate2d(X0, Y0, Z0)
+            #Z0t = Z0.sum()
             X0avg = self.integrate2d(X0, Y0, X0 * Z0) / Z0t
+            #X0avg = (X0*Z0).sum() / Z0t
             Y0avg = self.integrate2d(X0, Y0, Y0 * Z0) / Z0t
+            #Y0avg = (Y0 * Z0).sum() / Z0t
         self.logger.info('Average X0 %s, Y0 %s', X0avg, Y0avg)
         Z1 = Z0.copy()
         X1 = X0.copy() - X0avg
