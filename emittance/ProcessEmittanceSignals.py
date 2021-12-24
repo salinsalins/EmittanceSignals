@@ -1194,9 +1194,13 @@ class DesignerMainWindow(QMainWindow):
         n = sh[1]
         v = np.zeros(n, dtype=np.float64)
         for i in range(n):
-            v[i] = trapz(z[:, i], y[:, i])
+            fx = z[:, i]
+            xx = y[:, i]
+            v[i] = trapz(fx, xx)
             if z[:,i].sum() > 0.0 and v[i] == 0 :
                 print(i, z[:,i].sum())
+                v1 = trapz(fx[:10], xx[:10])
+                pass
         return trapz(v, x[0, :])
 
     def calculate_vertical_shift(self, y, f):
@@ -1324,7 +1328,7 @@ class DesignerMainWindow(QMainWindow):
             F0[i] = interp1d(y_data[i], z_data[i], kind='cubic', bounds_error=False, fill_value=0.0)
 
         # create (N x nx) initial arrays
-        N = 500
+        N = 360
         # X [mm] -- X axis of emittance plot
         X0 = np.zeros((N, nx), dtype=np.float64)
         # X' [radians] --  Y axis  of emittance plot
@@ -1386,8 +1390,8 @@ class DesignerMainWindow(QMainWindow):
         z_big = np.empty((N, N), dtype=np.float64)
         # fill x_big amd y_big
         for i in range(N):
-            x_big[:, i] = x_n
-            y_big[i, :] = y_n
+            x_big[i, :] = x_n
+            y_big[:, i] = y_n
         # max line x and y
         max_x_n = x_n
         max_y_n = max_line(x_n)
@@ -1418,7 +1422,7 @@ class DesignerMainWindow(QMainWindow):
         k = (max_y_n + y_lim) / 2. / y_lim * (N - 1)
         for i in range(N):
             #k = int((max_y_n[i] + y_lim) / 2. / y_lim * (N - 1))
-            z_big[i, int(k[i])] = max_line_z(max_line_length[i])
+            z_big[int(k[i]), i] = max_line_z(max_line_length[i])
 
         dy = 2. * y_lim / (N-1)
         dkmax = int((y_lim - max(max_y)) / dy - 1)
@@ -1430,18 +1434,21 @@ class DesignerMainWindow(QMainWindow):
                 z[i2] = F0[i2](y[i2])
             max_line_z = interp1d(max_line_length0, z, kind='cubic', bounds_error=False, fill_value='extrapolate')
             for i1 in range(N):
-                z_big[i1, int(k[i1])+i] = max_line_z(max_line_length[i1])
-        z_big[z_big < 0.0] = 0.0
+                z_big[int(k[i1])+i, i1] = max_line_z(max_line_length[i1])
+        z_big_max = z_big.max()
+        z_big[z_big < 0.01*z_big_max] = 0.0
 
         if int(self.comboBox.currentIndex()) == 10:
             # initial data
             self.clearPicture()
+            #axes.contour(X0, Y0, Z0)
             #axes.plot(max_line_length, max_line_along(max_line_length), 'x-', color='red')
             #axes.plot(max_line_length0, y, 'x-', color='blue')
             #axes.contour(x_big, y_big, z_big)
             #axes.plot(x, max_line(x), 'x-', color='magenta')
             #axes.grid(True)
             #axes.set_title('Test 1')
+            #axes.contour(x_big, y_big, z_big)
             axes.contourf(x_big, y_big*1000.0, z_big)
             axes.grid(True)
             axes.set_title('Фазовый портрет')
@@ -1490,23 +1497,26 @@ class DesignerMainWindow(QMainWindow):
             self.mplWidget.canvas.draw()
             return
 
-        # X0,Y0,Z0 -> X2,Y2,Z2 interpolate for NxN grid
-        #points = np.r_['1,2,0', X1.flat, Y1.flat]
-        grid_x, grid_y = self.grid(X0, Y0, ny)
-        #grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='linear', fill_value=0.0)
-        x = X0[0, :]
-        g = self.interpolate(x, max_y, F0)
-        grid_z = grid_x.copy()
-        for i in range(grid_x.shape[0]):
-            grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
-        # grid_z = self.map(g, grid_x, grid_y)
-        X2 = grid_x
-        Y2 = grid_y
-        Z2 = grid_z
-        #Z2 = grid_z + grid_z.min()
-        self.logger.info('Z2 min = %s max = %s', Z2.min(), Z2.max())
-        #Z2[Z2 < 0.0] = 0.0
-        # plot Z2 -> Z1 interpolated for NxN grid
+        # # X0,Y0,Z0 -> X2,Y2,Z2 interpolate for NxN grid
+        # #points = np.r_['1,2,0', X1.flat, Y1.flat]
+        # grid_x, grid_y = self.grid(X0, Y0, ny)
+        # #grid_z = griddata(points, Z1.flat, (grid_x, grid_y), method='linear', fill_value=0.0)
+        # x = X0[0, :]
+        # g = self.interpolate(x, max_y, F0)
+        # grid_z = grid_x.copy()
+        # for i in range(grid_x.shape[0]):
+        #     grid_z[:, i] = g(grid_x[0, i], grid_y[:, i])
+        # # grid_z = self.map(g, grid_x, grid_y)
+        # X2 = grid_x
+        # Y2 = grid_y
+        # Z2 = grid_z
+        # #Z2 = grid_z + grid_z.min()
+        # self.logger.info('Z2 min = %s max = %s', Z2.min(), Z2.max())
+        # #Z2[Z2 < 0.0] = 0.0
+        # # plot Z2 -> Z1 interpolated for NxN grid
+        X2 = X0
+        Y2 = Y0
+        Z2 = Z0
         if int(self.comboBox.currentIndex()) == 12:
             self.clearPicture()
             axes.contour(X2, Y2, Z2)
@@ -1546,7 +1556,7 @@ class DesignerMainWindow(QMainWindow):
             return
 
         # Emittance contour plot of beam cross-section
-        # cross section RMS emittance calculations
+        # RMS emittance calculations
         # X3,Y3,Z3 -> X5,Y5,Z5
         X5 = X3
         Y5 = Y3
@@ -1592,30 +1602,60 @@ class DesignerMainWindow(QMainWindow):
             return
 
         # X3,Y3,Z3 -> X4,Y4,Z4 integrate emittance from cross-section to circular beam
+        # x = X0[0, :]
+        # g = self.interpolate(x, max_y, F0)
         t0 = time.time()
         X4 = X3
         Y4 = Y3
         Z4 = Z3.copy()
         x = X4[0, :].flatten()
-        nx_ = x.size
-        ny_ = Z4[:, 0].size
-        for i in range(nx_):
-            print('%d' % (100.0*i/(nx_ - 1)), '%')
-            xi = x[i]
-            dx2 = x ** 2 - xi ** 2
-            dxgz = dx2 >= 0.0
-            if xi >= 0:
-                mask = (x >= xi) * dxgz
-                y = np.sqrt(dx2[mask])
+        x2 = x * x
+        r = np.zeros((N, N), dtype=np.float64)
+        for i in range(x.size):
+            r[i, :] = np.sqrt(x2[i] + x2)
+        mask = r <= x_lim
+        for i in range(x.size):
+            r[i, :] = r[i, :] * np.sign(x[i])
+            if x[i] >= 0.0:
+                mask[i, :] = np.logical_and(mask[i, :], x >= x[i])
             else:
-                mask = (x <= xi) * dxgz
-                y = -np.sqrt(dx2[mask])
-            xmask = x[mask]
-            for k in range(ny_):
-                xsub = Y4[k, 0] + Y2avg - max_k * (xi - xmask)
-                z = self.map(g, xmask + X2avg, xsub)
-                v = 2.0 * trapz(z, y)
-                Z4[k, i] = v
+                mask[i, :] = np.logical_and(mask[i, :], x <= x[i])
+
+        self.clearPicture()
+        axes.contour(X3, Y3, Z3)
+        axes.grid(True)
+        self.mplWidget.canvas.draw()
+
+        nx1 = x.size
+        ny1 = Z3[:, 0].size
+        for i in range(ny1):
+            print('%d' % (100.0*i/(nx1 - 1)), '%')
+            for k in range(nx1):
+                maski = mask[k, :]
+                xi = r[k, maski]
+                v = trapz(Z3[i, maski], xi)
+                # if i == 180:
+                #     axes.plot(xi, xi * 0.0 + Y3[i, 0])
+                #     self.mplWidget.canvas.draw()
+                Z4[i, k] = v
+
+        # for i in range(nx1):
+        #     print('%d' % (100.0*i/(nx1 - 1)), '%')
+        #     xi = x[i]
+        #     dx2 = x ** 2 - xi ** 2
+        #     dxgz = dx2 >= 0.0
+        #     if xi >= 0:
+        #         mask = (x >= xi) * dxgz
+        #         y = np.sqrt(dx2[mask])
+        #     else:
+        #         mask = (x <= xi) * dxgz
+        #         y = -np.sqrt(dx2[mask])
+        #     xmask = x[mask]
+        #     for k in range(ny_):
+        #         xsub = Y4[k, 0] + Y2avg - max_k * (xi - xmask)
+        #         z = self.map(g, xmask + X2avg, xsub)
+        #         v = 2.0 * trapz(z, y)
+        #         Z4[k, i] = v
 
         self.logger.info('Elapsed %s seconds', time.time() - t0)
         self.logger.info('Z4 min = %s max = %s', Z4.min(), Z4.max())
